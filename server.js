@@ -15,7 +15,7 @@ app.use(passport.initialize());
 const authMiddleware = passport.authenticate("local", { session: false });
 
 // Routes
-app.use("/user", userRoutes);
+app.use("/users", userRoutes);
 
 app.listen(PORT, () => {
   console.log(`Listening the port ${PORT}`);
