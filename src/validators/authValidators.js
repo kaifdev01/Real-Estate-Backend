@@ -19,6 +19,19 @@ const registerBuyerSchema = z.object({
   path: ["confirmPassword"],
 });
 
+// ─── Register Agent ───────────────────────────────────────────────────────────
+const registerAgentSchema = z.object({
+  firstName:       z.string().min(1, "First name is required").trim(),
+  lastName:        z.string().min(1, "Last name is required").trim(),
+  email:           z.email("Invalid email address").toLowerCase(),
+  phone:           z.string().min(7, "Invalid phone number"),
+  password:        passwordSchema,
+  confirmPassword: z.string(),
+}).refine((d) => d.password === d.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
 // ─── Register Agency ──────────────────────────────────────────────────────────
 const registerAgencySchema = z.object({
   agencyName:      z.string().min(2, "Agency name is required").trim(),
@@ -65,6 +78,7 @@ const verifyEmailSchema = z.object({
 
 module.exports = {
   registerBuyerSchema,
+  registerAgentSchema,
   registerAgencySchema,
   loginSchema,
   forgotPasswordSchema,

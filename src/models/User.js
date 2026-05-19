@@ -74,8 +74,7 @@ userSchema.methods.toPublicJSON = function () {
   };
 };
 
-// Compound index: email lookup is already unique; tenant+role queries
+// Compound index: email lookup is already covered by unique:true above
 userSchema.index({ tenantId: 1, role: 1 });
-userSchema.index({ email: 1 });
 
 module.exports = mongoose.model("User", userSchema);

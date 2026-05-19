@@ -64,6 +64,38 @@ exports.registerBuyer = asyncHandler(async (req, res) => {
   });
 });
 
+// ─── Register Agent (independent agent without agency) ──────────────────────
+
+exports.registerAgent = asyncHandler(async (req, res) => {
+  const { firstName, lastName, email, phone, password } = req.body;
+
+  const exists = await User.findOne({ email });
+  if (exists) throw new AppError("Email already registered.", 409);
+
+  const verificationCode = generateOTP();
+  const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
+
+  const user = await User.create({
+    firstName,
+    lastName,
+    email,
+    phone,
+    password,
+    role: "agent",
+    tenantId: null,
+    verificationCode,
+    verificationCodeExpires,
+  });
+
+  await sendVerificationEmail(email, verificationCode);
+
+  res.status(201).json({
+    success: true,
+    message: "Agent account created. Check your email for the verification code.",
+    data: { email: user.email, role: user.role },
+  });
+});
+
 // ─── Register Agency (creates Tenant + agency_admin user) ────────────────────
 
 exports.registerAgency = asyncHandler(async (req, res) => {
@@ -377,4 +409,34 @@ exports.getSessions = asyncHandler(async (req, res) => {
   }).select("deviceInfo createdAt expiresAt");
 
   res.json({ success: true, data: { sessions } });
+});
+
+// ─── Update Profile ───────────────────────────────────────────────────────────
+
+exports.updateMe = asyncHandler(async (req, res) => {
+  const { firstName, lastName, phone } = req.body;
+  const user = await User.findByIdAndUpdate(
+    req.userId,
+    { firstName, lastName, phone },
+    { new: true, runValidators: true }
+  );
+  res.json({ success: true, data: { user: user.toPublicJSON() } });
+});
+
+// ─── Change Password ──────────────────────────────────────────────────────────
+
+exports.changePassword = asyncHandler(async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) {
+    throw new AppError("currentPassword and newPassword are required.", 400);
+  }
+
+  const user = await User.findById(req.userId).select("+password");
+  const isMatch = await user.comparePassword(currentPassword);
+  if (!isMatch) throw new AppError("Current password is incorrect.", 401);
+
+  user.password = newPassword;
+  await user.save();
+
+  res.json({ success: true, message: "Password changed successfully." });
 });
