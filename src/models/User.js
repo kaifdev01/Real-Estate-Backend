@@ -1,0 +1,81 @@
+const mongoose = require("mongoose");
+const bcrypt = require("bcryptjs");
+
+const userSchema = new mongoose.Schema(
+  {
+    firstName: { type: String, required: true, trim: true },
+    lastName:  { type: String, required: true, trim: true },
+    email:     { type: String, required: true, unique: true, lowercase: true, trim: true },
+    phone:     { type: String, required: true },
+    password:  { type: String, required: true, minlength: 8, select: false },
+
+    role: {
+      type: String,
+      enum: ["super_admin", "agency_admin", "agent", "buyer"],
+      required: true,
+    },
+
+    // Multi-tenant: every user belongs to a tenant (null for super_admin)
+    tenantId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Tenant",
+      default: null,
+    },
+
+    // Account lifecycle
+    status: {
+      type: String,
+      enum: ["active", "inactive", "suspended", "pending_verification"],
+      default: "pending_verification",
+    },
+
+    // Email verification
+    isVerified: { type: Boolean, default: false },
+    verificationCode: { type: String, select: false },
+    verificationCodeExpires: { type: Date, select: false },
+
+    // Password reset
+    resetPasswordOTP: { type: String, select: false },
+    resetPasswordExpires: { type: Date, select: false },
+
+    // Session tracking
+    lastLogin: { type: Date },
+    lastLoginIp: { type: String },
+  },
+  { timestamps: true }
+);
+
+// Hash password before saving
+userSchema.pre("save", async function (next) {
+  if (!this.isModified("password")) return next();
+  this.password = await bcrypt.hash(this.password, 12);
+  next();
+});
+
+// Compare password
+userSchema.methods.comparePassword = async function (entered) {
+  return bcrypt.compare(entered, this.password);
+};
+
+// Safe public profile (strip sensitive fields)
+userSchema.methods.toPublicJSON = function () {
+  return {
+    id: this._id,
+    firstName: this.firstName,
+    lastName: this.lastName,
+    email: this.email,
+    phone: this.phone,
+    role: this.role,
+    tenantId: this.tenantId,
+    status: this.status,
+    isVerified: this.isVerified,
+    lastLogin: this.lastLogin,
+    createdAt: this.createdAt,
+  };
+};
+
+// Compound index: email lookup is already unique; tenant+role queries
+userSchema.index({ tenantId: 1, role: 1 });
+userSchema.index({ email: 1 });
+
+module.exports = mongoose.model("User", userSchema);

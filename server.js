@@ -1,22 +1,80 @@
-const express = require("express");
-const app = express();
-const bodyParser = require("body-parser");
 require("dotenv").config();
-const db = require("./db");
-const userRoutes = require("./routes/UserRoutes");
-const passport = require("./middleware/auth");
-const cors = require("cors");
+const express    = require("express");
+const helmet     = require("helmet");
+const cors       = require("cors");
+const rateLimit  = require("express-rate-limit");
+const cookieParser = require("cookie-parser");
+const mongoose   = require("mongoose");
 
-// Packages
-app.use(cors());
-const PORT = process.env.PORT || 8080;
-app.use(bodyParser.json());
-app.use(passport.initialize());
-const authMiddleware = passport.authenticate("local", { session: false });
+const authRoutes   = require("./src/routes/authRoutes");
+const errorHandler = require("./src/middleware/errorHandler");
+const AppError     = require("./src/utils/AppError");
 
-// Routes
-app.use("/users", userRoutes);
+const app = express();
 
-app.listen(PORT, () => {
-  console.log(`Listening the port ${PORT}`);
+// ─── Security Headers ─────────────────────────────────────────────────────────
+app.use(helmet());
+
+// ─── CORS ─────────────────────────────────────────────────────────────────────
+app.use(cors({
+  origin: process.env.CLIENT_URL || "http://localhost:3000",
+  credentials: true,          // required for HttpOnly cookies
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Device-Id"],
+}));
+
+// ─── Rate Limiting ────────────────────────────────────────────────────────────
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many requests. Please try again later." },
 });
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,                   // stricter limit on auth endpoints
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, message: "Too many auth attempts. Please try again later." },
+});
+
+app.use(globalLimiter);
+
+// ─── Body Parsing ─────────────────────────────────────────────────────────────
+app.use(express.json({ limit: "10kb" }));
+app.use(express.urlencoded({ extended: true, limit: "10kb" }));
+app.use(cookieParser(process.env.COOKIE_SECRET));
+
+// ─── Routes ───────────────────────────────────────────────────────────────────
+app.use("/api/auth", authLimiter, authRoutes);
+
+// Health check
+app.get("/api/health", (req, res) =>
+  res.json({ success: true, message: "Server is running.", env: process.env.NODE_ENV })
+);
+
+// 404 handler
+app.all("*", (req, res, next) =>
+  next(new AppError(`Route ${req.originalUrl} not found.`, 404))
+);
+
+// ─── Centralized Error Handler ────────────────────────────────────────────────
+app.use(errorHandler);
+
+// ─── Database + Server Start ──────────────────────────────────────────────────
+const PORT = process.env.PORT || 8080;
+
+mongoose
+  .connect(process.env.MONGO_URL)
+  .then(() => {
+    console.log("Connected to MongoDB");
+    app.listen(PORT, () =>
+      console.log(`Server running on port ${PORT} [${process.env.NODE_ENV}]`)
+    );
+  })
+  .catch((err) => {
+    console.error("MongoDB connection failed:", err.message);
+    process.exit(1);
+  });
