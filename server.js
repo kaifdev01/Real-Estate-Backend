@@ -8,6 +8,7 @@ const mongoose   = require("mongoose");
 
 const authRoutes        = require("./src/routes/authRoutes");
 const propertyRoutes    = require("./src/routes/propertyRoutes");
+const agentRoutes       = require("./src/routes/agentRoutes");
 const uploadRoutes      = require("./src/routes/uploadRoutes");
 const inquiryRoutes     = require("./src/routes/inquiryRoutes");
 const appointmentRoutes = require("./src/routes/appointmentRoutes");
@@ -54,6 +55,7 @@ app.use(cookieParser(process.env.COOKIE_SECRET));
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/auth",         authLimiter, authRoutes);
 app.use("/api/properties",               propertyRoutes);
+app.use("/api/agents",                   agentRoutes);
 app.use("/api/upload",                   uploadRoutes);
 app.use("/api/inquiries",                inquiryRoutes);
 app.use("/api/appointments",             appointmentRoutes);

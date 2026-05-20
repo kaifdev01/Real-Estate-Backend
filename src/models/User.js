@@ -38,6 +38,15 @@ const userSchema = new mongoose.Schema(
     resetPasswordOTP: { type: String, select: false },
     resetPasswordExpires: { type: Date, select: false },
 
+    // Agent profile fields (only for role: agent)
+    bio:          { type: String, default: "" },
+    city:         { type: String, default: "" },
+    specialties:  { type: [String], default: [] },
+    languages:    { type: [String], default: [] },
+    experience:   { type: Number, default: 0 },
+    responseTime: { type: String, default: "< 24 hours" },
+    avatar:       { type: String, default: "" },
+
     // Session tracking
     lastLogin: { type: Date },
     lastLoginIp: { type: String },
@@ -71,6 +80,14 @@ userSchema.methods.toPublicJSON = function () {
     isVerified: this.isVerified,
     lastLogin: this.lastLogin,
     createdAt: this.createdAt,
+    // agent profile
+    bio: this.bio,
+    city: this.city,
+    specialties: this.specialties,
+    languages: this.languages,
+    experience: this.experience,
+    responseTime: this.responseTime,
+    avatar: this.avatar,
   };
 };
 

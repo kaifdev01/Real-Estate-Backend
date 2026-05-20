@@ -69,7 +69,7 @@ exports.getProperties = asyncHandler(async (req, res) => {
 
 exports.getPropertyBySlug = asyncHandler(async (req, res) => {
   const property = await Property.findOne({ slug: req.params.slug, status: "approved" })
-    .populate("agentId", "firstName lastName email phone")
+    .populate("agentId", "firstName lastName email phone avatar city")
     .populate("tenantId", "name slug logo")
     .lean();
 
@@ -98,23 +98,33 @@ exports.createProperty = asyncHandler(async (req, res) => {
   });
 });
 
-// ─── PUT /api/properties/:id — Agent updates own draft/rejected property ──────
+// ─── PUT /api/properties/:id — Agent updates own property (any status) ────────
 
 exports.updateProperty = asyncHandler(async (req, res) => {
   const property = await Property.findOne({ _id: req.params.id, agentId: req.userId });
   if (!property) throw new AppError("Property not found.", 404);
 
-  if (!["draft", "rejected"].includes(property.status)) {
-    throw new AppError("Only draft or rejected properties can be edited.", 400);
-  }
+  // If approved/submitted, editing resets status back to draft for re-review
+  const needsReReview = ["approved", "submitted"].includes(property.status);
 
   Object.assign(property, req.body);
+
+  if (needsReReview) {
+    property.status = "draft";
+  }
+
   await property.save();
 
-  res.json({ success: true, message: "Property updated.", data: { property } });
+  res.json({
+    success: true,
+    message: needsReReview
+      ? "Property updated and moved back to draft for re-review."
+      : "Property updated.",
+    data: { property },
+  });
 });
 
-// ─── DELETE /api/properties/:id — Agent deletes own draft ─────────────────────
+// ─── DELETE /api/properties/:id — Agent deletes own property (any status) ─────
 
 exports.deleteProperty = asyncHandler(async (req, res) => {
   const filter = { _id: req.params.id };
@@ -125,11 +135,8 @@ exports.deleteProperty = asyncHandler(async (req, res) => {
     filter.agentId = req.userId;
   }
 
-  // Only non-live properties can be deleted
-  filter.status = { $in: ["draft", "rejected", "archived"] };
-
   const property = await Property.findOneAndDelete(filter);
-  if (!property) throw new AppError("Property not found or cannot be deleted.", 404);
+  if (!property) throw new AppError("Property not found.", 404);
 
   res.json({ success: true, message: "Property deleted." });
 });

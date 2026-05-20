@@ -24,7 +24,10 @@ const handleJWTExpired = () =>
 // ─── Response Senders ─────────────────────────────────────────────────────────
 
 const sendDevError = (err, res) => {
-  res.status(err.statusCode).json({
+  const statusCode = Number.isInteger(err.statusCode) && err.statusCode >= 100 && err.statusCode < 600
+    ? err.statusCode
+    : 500;
+  res.status(statusCode).json({
     success: false,
     status: err.status,
     message: err.message,
@@ -34,15 +37,16 @@ const sendDevError = (err, res) => {
 };
 
 const sendProdError = (err, res) => {
+  const statusCode = Number.isInteger(err.statusCode) && err.statusCode >= 100 && err.statusCode < 600
+    ? err.statusCode
+    : 500;
   if (err.isOperational) {
-    // Trusted, known error — safe to expose message
-    res.status(err.statusCode).json({
+    res.status(statusCode).json({
       success: false,
       status: err.status,
       message: err.message,
     });
   } else {
-    // Unknown programmer error — don't leak details
     console.error("UNHANDLED ERROR:", err);
     res.status(500).json({
       success: false,
