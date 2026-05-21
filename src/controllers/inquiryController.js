@@ -1,7 +1,12 @@
 const Inquiry    = require("../models/Inquiry");
 const Property   = require("../models/Property");
+const User       = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError   = require("../utils/AppError");
+const {
+  sendInquiryNotificationToAgent,
+  sendInquiryReplyToBuyer,
+} = require("../services/emailService");
 
 // POST /api/inquiries — buyer sends inquiry
 exports.createInquiry = asyncHandler(async (req, res) => {
@@ -21,6 +26,24 @@ exports.createInquiry = asyncHandler(async (req, res) => {
 
   // Increment property inquiry count
   Property.findByIdAndUpdate(propertyId, { $inc: { inquiries: 1 } }).exec();
+
+  // Send email to agent (fire and forget)
+  const [agent, buyer] = await Promise.all([
+    User.findById(property.agentId).select("firstName lastName email phone"),
+    User.findById(req.userId).select("firstName lastName email phone"),
+  ]);
+  if (agent && buyer) {
+    Promise.allSettled([
+      sendInquiryNotificationToAgent(agent.email, {
+        agentName:     `${agent.firstName} ${agent.lastName}`,
+        buyerName:     `${buyer.firstName} ${buyer.lastName}`,
+        buyerEmail:    buyer.email,
+        buyerPhone:    buyer.phone,
+        propertyTitle: property.title,
+        message,
+      }),
+    ]);
+  }
 
   res.status(201).json({ success: true, data: { inquiry } });
 });
@@ -86,6 +109,25 @@ exports.replyToInquiry = asyncHandler(async (req, res) => {
   inquiry.replies.push({ senderId: req.userId, senderRole: req.user.role, message });
   inquiry.status = "replied";
   await inquiry.save();
+
+  // If agent replied, send email to buyer
+  if (isAgent) {
+    const [agent, buyer, property] = await Promise.all([
+      User.findById(inquiry.agentId).select("firstName lastName"),
+      User.findById(inquiry.buyerId).select("firstName lastName email"),
+      require("../models/Property").findById(inquiry.propertyId).select("title"),
+    ]);
+    if (agent && buyer && property) {
+      Promise.allSettled([
+        sendInquiryReplyToBuyer(buyer.email, {
+          buyerName:     `${buyer.firstName} ${buyer.lastName}`,
+          agentName:     `${agent.firstName} ${agent.lastName}`,
+          propertyTitle: property.title,
+          replyMessage:  message,
+        }),
+      ]);
+    }
+  }
 
   res.json({ success: true, data: { inquiry } });
 });

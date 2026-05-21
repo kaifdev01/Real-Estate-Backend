@@ -57,8 +57,164 @@ const sendPasswordResetEmail = (email, otp) =>
       </div>`,
   });
 
+const sendAppointmentNotificationToAgent = (agentEmail, { agentName, buyerName, buyerEmail, buyerPhone, propertyTitle, date, timeSlot, message }) =>
+  sendMail({
+    to: agentEmail,
+    subject: `New Visit Request — ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1A3C5E;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">New Visit Request</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate — Property Visit Booking</p>
+        </div>
+        <p style="color:#333">Hi <strong>${agentName}</strong>,</p>
+        <p style="color:#555;font-size:14px">A buyer has requested a visit for one of your properties. Details below:</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Property</td><td style="padding:10px 14px;color:#333">${propertyTitle}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Buyer Name</td><td style="padding:10px 14px;color:#333">${buyerName}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Buyer Email</td><td style="padding:10px 14px;color:#333">${buyerEmail}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Buyer Phone</td><td style="padding:10px 14px;color:#333">${buyerPhone || 'Not provided'}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Requested Date</td><td style="padding:10px 14px;color:#333">${date}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Time Slot</td><td style="padding:10px 14px;color:#333">${timeSlot}</td></tr>
+          ${message ? `<tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Message</td><td style="padding:10px 14px;color:#333">${message}</td></tr>` : ''}
+        </table>
+        <a href="${process.env.CLIENT_URL}/dashboard/agency_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">View in Dashboard</a>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+
+const sendAppointmentConfirmationToBuyer = (buyerEmail, { buyerName, agentName, propertyTitle, date, timeSlot }) =>
+  sendMail({
+    to: buyerEmail,
+    subject: `Visit Booked — ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1A3C5E;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">Visit Confirmed!</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate — Property Visit Booking</p>
+        </div>
+        <p style="color:#333">Hi <strong>${buyerName}</strong>,</p>
+        <p style="color:#555;font-size:14px">Your visit request has been submitted. The agent will confirm shortly.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Property</td><td style="padding:10px 14px;color:#333">${propertyTitle}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Agent</td><td style="padding:10px 14px;color:#333">${agentName}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Date</td><td style="padding:10px 14px;color:#333">${date}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Time</td><td style="padding:10px 14px;color:#333">${timeSlot}</td></tr>
+        </table>
+        <a href="${process.env.CLIENT_URL}/properties" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">Browse More Properties</a>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+
+const sendAppointmentStatusUpdateToBuyer = (buyerEmail, { buyerName, agentName, propertyTitle, date, timeSlot, status }) => {
+  const isApproved = status === "approved";
+  const isRejected = status === "rejected";
+  const headerColor = isApproved ? "#1a5c3a" : isRejected ? "#7f1d1d" : "#1A3C5E";
+  const heading     = isApproved ? "Visit Approved ✓" : isRejected ? "Visit Rejected" : "Visit Update";
+  const statusLine  = isApproved
+    ? "Great news! Your visit has been <strong style=\"color:#16a34a\">approved</strong> by the agent."
+    : isRejected
+    ? "Unfortunately, your visit request has been <strong style=\"color:#dc2626\">rejected</strong> by the agent."
+    : "Your appointment status has been updated.";
+
+  return sendMail({
+    to: buyerEmail,
+    subject: `Visit ${isApproved ? "Approved" : isRejected ? "Rejected" : "Updated"} — ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:${headerColor};padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">${heading}</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate — Property Visit Update</p>
+        </div>
+        <p style="color:#333">Hi <strong>${buyerName}</strong>,</p>
+        <p style="color:#555;font-size:14px">${statusLine}</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Property</td><td style="padding:10px 14px;color:#333">${propertyTitle}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Agent</td><td style="padding:10px 14px;color:#333">${agentName}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Date</td><td style="padding:10px 14px;color:#333">${date}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Time</td><td style="padding:10px 14px;color:#333">${timeSlot}</td></tr>
+        </table>
+        <a href="${process.env.CLIENT_URL}/dashboard/buyer_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">View in Dashboard</a>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+};
+
+const sendAppointmentRescheduledToBuyer = (buyerEmail, { buyerName, agentName, propertyTitle, newDate, newTimeSlot, note }) =>
+  sendMail({
+    to: buyerEmail,
+    subject: `Visit Rescheduled — ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">Visit Rescheduled</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate — Property Visit Update</p>
+        </div>
+        <p style="color:#333">Hi <strong>${buyerName}</strong>,</p>
+        <p style="color:#555;font-size:14px">The agent <strong>${agentName}</strong> has rescheduled your visit to a new date and time.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Property</td><td style="padding:10px 14px;color:#333">${propertyTitle}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">New Date</td><td style="padding:10px 14px;color:#333">${newDate}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">New Time</td><td style="padding:10px 14px;color:#333">${newTimeSlot}</td></tr>
+          ${note ? `<tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Agent Note</td><td style="padding:10px 14px;color:#333">${note}</td></tr>` : ""}
+        </table>
+        <a href="${process.env.CLIENT_URL}/dashboard/buyer_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">View in Dashboard</a>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+
+const sendInquiryNotificationToAgent = (agentEmail, { agentName, buyerName, buyerEmail, buyerPhone, propertyTitle, message }) =>
+  sendMail({
+    to: agentEmail,
+    subject: `New Inquiry \u2014 ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1A3C5E;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">New Inquiry Received</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate \u2014 Property Inquiry</p>
+        </div>
+        <p style="color:#333">Hi <strong>${agentName}</strong>,</p>
+        <p style="color:#555;font-size:14px">A buyer has sent an inquiry about one of your properties.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Property</td><td style="padding:10px 14px;color:#333">${propertyTitle}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Buyer Name</td><td style="padding:10px 14px;color:#333">${buyerName}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Buyer Email</td><td style="padding:10px 14px;color:#333">${buyerEmail}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Buyer Phone</td><td style="padding:10px 14px;color:#333">${buyerPhone || 'Not provided'}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Message</td><td style="padding:10px 14px;color:#333">${message}</td></tr>
+        </table>
+        <a href="${process.env.CLIENT_URL}/dashboard/agency_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">Reply in Dashboard</a>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+
+const sendInquiryReplyToBuyer = (buyerEmail, { buyerName, agentName, propertyTitle, replyMessage }) =>
+  sendMail({
+    to: buyerEmail,
+    subject: `Agent Replied \u2014 ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1A3C5E;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">Agent Replied to Your Inquiry</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate \u2014 Property Inquiry</p>
+        </div>
+        <p style="color:#333">Hi <strong>${buyerName}</strong>,</p>
+        <p style="color:#555;font-size:14px"><strong>${agentName}</strong> has replied to your inquiry about <strong>${propertyTitle}</strong>.</p>
+        <div style="background:#F5F2ED;border-left:4px solid #C9A84C;padding:16px 20px;border-radius:0 8px 8px 0;margin:20px 0;font-size:14px;color:#333;font-style:italic">
+          &ldquo;${replyMessage}&rdquo;
+        </div>
+        <a href="${process.env.CLIENT_URL}/dashboard/buyer_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">View in Dashboard</a>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+
 module.exports = {
   sendVerificationEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendAppointmentNotificationToAgent,
+  sendAppointmentConfirmationToBuyer,
+  sendAppointmentStatusUpdateToBuyer,
+  sendAppointmentRescheduledToBuyer,
+  sendInquiryNotificationToAgent,
+  sendInquiryReplyToBuyer,
 };

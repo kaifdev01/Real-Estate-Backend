@@ -10,7 +10,7 @@ const replySchema = new mongoose.Schema({
 const inquirySchema = new mongoose.Schema(
   {
     propertyId: { type: mongoose.Schema.Types.ObjectId, ref: "Property", required: true },
-    tenantId:   { type: mongoose.Schema.Types.ObjectId, ref: "Tenant",   required: true },
+    tenantId:   { type: mongoose.Schema.Types.ObjectId, ref: "Tenant",   default: null },
     agentId:    { type: mongoose.Schema.Types.ObjectId, ref: "User",     required: true },
     buyerId:    { type: mongoose.Schema.Types.ObjectId, ref: "User",     required: true },
     message:    { type: String, required: true, trim: true, maxlength: 1000 },
