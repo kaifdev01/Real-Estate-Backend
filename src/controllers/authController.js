@@ -179,6 +179,45 @@ exports.verifyEmail = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Email verified successfully." });
 });
 
+// â”€â”€â”€ Complete Agent Invitation â€” verifies OTP, sets password, activates tenant agent â”€â”€â”€
+
+exports.completeAgentInvitation = asyncHandler(async (req, res) => {
+  const { email, code, password, firstName, lastName, phone } = req.body;
+
+  const user = await User.findOne({ email, role: "agent" }).select(
+    "+password +verificationCode +verificationCodeExpires"
+  );
+  if (!user) throw new AppError("Invitation not found.", 404);
+  if (!user.tenantId) throw new AppError("This invitation is not linked to an agency.", 400);
+  if (user.isVerified && user.status === "active") {
+    throw new AppError("Invitation has already been completed. Please sign in.", 400);
+  }
+  if (!user.verificationCode || user.verificationCode !== code) {
+    throw new AppError("Invalid verification code.", 400);
+  }
+  if (user.verificationCodeExpires < new Date()) {
+    throw new AppError("Verification code expired. Ask your agency admin to resend the invitation.", 400);
+  }
+
+  if (firstName) user.firstName = firstName;
+  if (lastName) user.lastName = lastName;
+  if (phone) user.phone = phone;
+  user.password = password;
+  user.isVerified = true;
+  user.status = "active";
+  user.verificationCode = undefined;
+  user.verificationCodeExpires = undefined;
+  await user.save();
+
+  await sendWelcomeEmail(email, `${user.firstName} ${user.lastName}`);
+
+  res.json({
+    success: true,
+    message: "Invitation completed. You can now sign in.",
+    data: { user: user.toPublicJSON() },
+  });
+});
+
 // ─── Resend Verification ──────────────────────────────────────────────────────
 
 exports.resendVerification = asyncHandler(async (req, res) => {

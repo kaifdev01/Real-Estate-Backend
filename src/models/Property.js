@@ -15,8 +15,8 @@ const propertySchema = new mongoose.Schema(
     },
 
     // ── Core Info ──────────────────────────────────────────────────────────────
-    title:       { type: String, required: true, trim: true, maxlength: 150 },
-    slug:        { type: String, unique: true, lowercase: true, trim: true },
+    title: { type: String, required: true, trim: true, maxlength: 150 },
+    slug: { type: String, unique: true, lowercase: true, trim: true },
     description: { type: String, trim: true, maxlength: 3000 },
 
     // ── Listing Type ───────────────────────────────────────────────────────────
@@ -32,32 +32,32 @@ const propertySchema = new mongoose.Schema(
     },
 
     // ── Pricing ────────────────────────────────────────────────────────────────
-    price:    { type: Number, required: true, min: 0 },
+    price: { type: Number, required: true, min: 0 },
     currency: { type: String, default: "PKR" },
 
     // ── Location ───────────────────────────────────────────────────────────────
     address: { type: String, trim: true },
-    city:    { type: String, required: true, trim: true },
-    area:    { type: String, trim: true }, // neighbourhood / sector
+    city: { type: String, required: true, trim: true },
+    area: { type: String, trim: true }, // neighbourhood / sector
     coordinates: {
       lat: { type: Number },
       lng: { type: Number },
     },
 
     // ── Specs ──────────────────────────────────────────────────────────────────
-    size:     { type: Number },           // sq ft
-    beds:     { type: Number, min: 0 },
-    baths:    { type: Number, min: 0 },
-    parking:  { type: Number, min: 0, default: 0 },
-    floors:   { type: Number, min: 1 },
-    yearBuilt:{ type: Number },
+    size: { type: Number },           // sq ft
+    beds: { type: Number, min: 0 },
+    baths: { type: Number, min: 0 },
+    parking: { type: Number, min: 0, default: 0 },
+    floors: { type: Number, min: 1 },
+    yearBuilt: { type: Number },
 
     // ── Media ──────────────────────────────────────────────────────────────────
     images: [
       {
-        url:       { type: String, required: true },
-        publicId:  { type: String },          // Cloudinary public_id for deletion
-        isCover:   { type: Boolean, default: false },
+        url: { type: String, required: true },
+        publicId: { type: String },          // Cloudinary public_id for deletion
+        isCover: { type: Boolean, default: false },
       },
     ],
 
@@ -67,16 +67,17 @@ const propertySchema = new mongoose.Schema(
     // ── Lifecycle ──────────────────────────────────────────────────────────────
     status: {
       type: String,
-      enum: ["draft", "submitted", "approved", "rejected", "archived"],
+      enum: ["draft", "submitted", "approved", "rejected", "archived", "sold", "rented", "closed"],
       default: "draft",
     },
     rejectionReason: { type: String },
-    featuredUntil:   { type: Date },          // paid featured boost expiry
-    archivedAt:      { type: Date },
+    featuredUntil: { type: Date },          // paid featured boost expiry
+    archivedAt: { type: Date },
+    dealClosedAt: { type: Date },
 
     // ── Analytics ──────────────────────────────────────────────────────────────
-    views:    { type: Number, default: 0 },
-    inquiries:{ type: Number, default: 0 },
+    views: { type: Number, default: 0 },
+    inquiries: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

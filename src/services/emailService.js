@@ -57,6 +57,26 @@ const sendPasswordResetEmail = (email, otp) =>
       </div>`,
   });
 
+const sendAgentInvitationEmail = (email, code, name) =>
+  sendMail({
+    to: email,
+    subject: "You've been invited to join LuxEstate",
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <h2 style="color:#1A3C5E">Hello ${name || "Agent"},</h2>
+        <p style="color:#333;font-size:15px;line-height:1.7">
+          You have been invited to join LuxEstate as an agent for your agency.
+          Use the verification code below to activate your account, set your password, and complete onboarding.
+        </p>
+        <div style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#C9A84C;text-align:center;padding:24px 0">${code}</div>
+        <p style="color:#333;font-size:15px;line-height:1.7">
+          This code expires in 15 minutes.
+        </p>
+        <a href="${process.env.CLIENT_URL}/agent-invitation?email=${encodeURIComponent(email)}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold">Complete Invitation</a>
+        <p style="color:#888;font-size:12px;margin-top:24px">If you didn't expect this invitation, please ignore this email.</p>
+      </div>`,
+  });
+
 const sendAppointmentNotificationToAgent = (agentEmail, { agentName, buyerName, buyerEmail, buyerPhone, propertyTitle, date, timeSlot, message }) =>
   sendMail({
     to: agentEmail,
@@ -110,12 +130,12 @@ const sendAppointmentStatusUpdateToBuyer = (buyerEmail, { buyerName, agentName, 
   const isApproved = status === "approved";
   const isRejected = status === "rejected";
   const headerColor = isApproved ? "#1a5c3a" : isRejected ? "#7f1d1d" : "#1A3C5E";
-  const heading     = isApproved ? "Visit Approved ✓" : isRejected ? "Visit Rejected" : "Visit Update";
-  const statusLine  = isApproved
+  const heading = isApproved ? "Visit Approved ✓" : isRejected ? "Visit Rejected" : "Visit Update";
+  const statusLine = isApproved
     ? "Great news! Your visit has been <strong style=\"color:#16a34a\">approved</strong> by the agent."
     : isRejected
-    ? "Unfortunately, your visit request has been <strong style=\"color:#dc2626\">rejected</strong> by the agent."
-    : "Your appointment status has been updated.";
+      ? "Unfortunately, your visit request has been <strong style=\"color:#dc2626\">rejected</strong> by the agent."
+      : "Your appointment status has been updated.";
 
   return sendMail({
     to: buyerEmail,
@@ -187,6 +207,26 @@ const sendInquiryNotificationToAgent = (agentEmail, { agentName, buyerName, buye
       </div>`,
   });
 
+const sendInquiryReplyToAgent = (agentEmail, { agentName, buyerName, propertyTitle, replyMessage }) =>
+  sendMail({
+    to: agentEmail,
+    subject: `Buyer Replied — ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1e3a5f;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">Buyer Replied to Your Inquiry</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate — Property Inquiry</p>
+        </div>
+        <p style="color:#333">Hi <strong>${agentName}</strong>,</p>
+        <p style="color:#555;font-size:14px">A buyer has replied to their inquiry about <strong>${propertyTitle}</strong>.</p>
+        <div style="background:#F5F2ED;border-left:4px solid #C9A84C;padding:16px 20px;border-radius:0 8px 8px 0;margin:20px 0;font-size:14px;color:#333;font-style:italic">
+          &ldquo;${replyMessage}&rdquo;
+        </div>
+        <a href="${process.env.CLIENT_URL}/dashboard/agency_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">View in Dashboard</a>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+
 const sendInquiryReplyToBuyer = (buyerEmail, { buyerName, agentName, propertyTitle, replyMessage }) =>
   sendMail({
     to: buyerEmail,
@@ -211,10 +251,12 @@ module.exports = {
   sendVerificationEmail,
   sendWelcomeEmail,
   sendPasswordResetEmail,
+  sendAgentInvitationEmail,
   sendAppointmentNotificationToAgent,
   sendAppointmentConfirmationToBuyer,
   sendAppointmentStatusUpdateToBuyer,
   sendAppointmentRescheduledToBuyer,
   sendInquiryNotificationToAgent,
+  sendInquiryReplyToAgent,
   sendInquiryReplyToBuyer,
 };

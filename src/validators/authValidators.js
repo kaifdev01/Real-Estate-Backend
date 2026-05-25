@@ -8,11 +8,11 @@ const passwordSchema = z
 
 // ─── Register Buyer ───────────────────────────────────────────────────────────
 const registerBuyerSchema = z.object({
-  firstName:       z.string().min(1, "First name is required").trim(),
-  lastName:        z.string().min(1, "Last name is required").trim(),
-  email:           z.email("Invalid email address").toLowerCase(),
-  phone:           z.string().min(7, "Invalid phone number"),
-  password:        passwordSchema,
+  firstName: z.string().min(1, "First name is required").trim(),
+  lastName: z.string().min(1, "Last name is required").trim(),
+  email: z.email("Invalid email address").toLowerCase(),
+  phone: z.string().min(7, "Invalid phone number"),
+  password: passwordSchema,
   confirmPassword: z.string(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
@@ -21,11 +21,11 @@ const registerBuyerSchema = z.object({
 
 // ─── Register Agent ───────────────────────────────────────────────────────────
 const registerAgentSchema = z.object({
-  firstName:       z.string().min(1, "First name is required").trim(),
-  lastName:        z.string().min(1, "Last name is required").trim(),
-  email:           z.email("Invalid email address").toLowerCase(),
-  phone:           z.string().min(7, "Invalid phone number"),
-  password:        passwordSchema,
+  firstName: z.string().min(1, "First name is required").trim(),
+  lastName: z.string().min(1, "Last name is required").trim(),
+  email: z.email("Invalid email address").toLowerCase(),
+  phone: z.string().min(7, "Invalid phone number"),
+  password: passwordSchema,
   confirmPassword: z.string(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
@@ -34,14 +34,14 @@ const registerAgentSchema = z.object({
 
 // ─── Register Agency ──────────────────────────────────────────────────────────
 const registerAgencySchema = z.object({
-  agencyName:      z.string().min(2, "Agency name is required").trim(),
-  agencyEmail:     z.email("Invalid agency email").toLowerCase(),
-  agencyPhone:     z.string().min(7, "Invalid phone number"),
-  adminFirstName:  z.string().min(1, "First name is required").trim(),
-  adminLastName:   z.string().min(1, "Last name is required").trim(),
-  adminEmail:      z.email("Invalid admin email").toLowerCase(),
-  adminPhone:      z.string().min(7, "Invalid phone number"),
-  password:        passwordSchema,
+  agencyName: z.string().min(2, "Agency name is required").trim(),
+  agencyEmail: z.email("Invalid agency email").toLowerCase(),
+  agencyPhone: z.string().min(7, "Invalid phone number"),
+  adminFirstName: z.string().min(1, "First name is required").trim(),
+  adminLastName: z.string().min(1, "Last name is required").trim(),
+  adminEmail: z.email("Invalid admin email").toLowerCase(),
+  adminPhone: z.string().min(7, "Invalid phone number"),
+  password: passwordSchema,
   confirmPassword: z.string(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
@@ -50,7 +50,7 @@ const registerAgencySchema = z.object({
 
 // ─── Login ────────────────────────────────────────────────────────────────────
 const loginSchema = z.object({
-  email:    z.email("Invalid email address").toLowerCase(),
+  email: z.email("Invalid email address").toLowerCase(),
   password: z.string().min(1, "Password is required"),
 });
 
@@ -61,27 +61,49 @@ const forgotPasswordSchema = z.object({
 
 // ─── Reset Password ───────────────────────────────────────────────────────────
 const resetPasswordSchema = z.object({
-  email:           z.email("Invalid email address").toLowerCase(),
-  otp:             z.string().length(6, "OTP must be 6 digits"),
-  newPassword:     passwordSchema,
+  email: z.email("Invalid email address").toLowerCase(),
+  otp: z.string().length(6, "OTP must be 6 digits"),
+  newPassword: passwordSchema,
   confirmPassword: z.string(),
 }).refine((d) => d.newPassword === d.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
 });
 
+const completeAgentInvitationSchema = z.object({
+  email: z.email("Invalid email address").toLowerCase(),
+  code: z.string().length(6, "Verification code must be 6 digits"),
+  password: passwordSchema,
+  confirmPassword: z.string(),
+  firstName: z.string().min(1, "First name is required").trim().optional(),
+  lastName: z.string().min(1, "Last name is required").trim().optional(),
+  phone: z.string().min(7, "Invalid phone number").optional(),
+}).refine((d) => d.password === d.confirmPassword, {
+  message: "Passwords do not match",
+  path: ["confirmPassword"],
+});
+
+// ─── Invite Agent ───────────────────────────────────────────────────────────
+const inviteAgentSchema = z.object({
+  name: z.string().min(1, "Agent name is required").trim(),
+  email: z.email("Invalid email address").toLowerCase(),
+  phone: z.string().optional(),
+});
+
 // ─── Verify Email ─────────────────────────────────────────────────────────────
 const verifyEmailSchema = z.object({
   email: z.email("Invalid email address").toLowerCase(),
-  code:  z.string().length(6, "Verification code must be 6 digits"),
+  code: z.string().length(6, "Verification code must be 6 digits"),
 });
 
 module.exports = {
   registerBuyerSchema,
   registerAgentSchema,
   registerAgencySchema,
+  inviteAgentSchema,
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  completeAgentInvitationSchema,
   verifyEmailSchema,
 };

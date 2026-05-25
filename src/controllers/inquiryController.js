@@ -1,10 +1,11 @@
-const Inquiry    = require("../models/Inquiry");
-const Property   = require("../models/Property");
-const User       = require("../models/User");
+const Inquiry = require("../models/Inquiry");
+const Property = require("../models/Property");
+const User = require("../models/User");
 const asyncHandler = require("../utils/asyncHandler");
-const AppError   = require("../utils/AppError");
+const AppError = require("../utils/AppError");
 const {
   sendInquiryNotificationToAgent,
+  sendInquiryReplyToAgent,
   sendInquiryReplyToBuyer,
 } = require("../services/emailService");
 
@@ -19,9 +20,12 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   const inquiry = await Inquiry.create({
     propertyId,
     tenantId: property.tenantId,
-    agentId:  property.agentId,
-    buyerId:  req.userId,
+    agentId: property.agentId,
+    buyerId: req.userId,
     message,
+    status: "open",
+    lastReplyByRole: "buyer",
+    lastReplyAt: new Date(),
   });
 
   // Increment property inquiry count
@@ -35,10 +39,10 @@ exports.createInquiry = asyncHandler(async (req, res) => {
   if (agent && buyer) {
     Promise.allSettled([
       sendInquiryNotificationToAgent(agent.email, {
-        agentName:     `${agent.firstName} ${agent.lastName}`,
-        buyerName:     `${buyer.firstName} ${buyer.lastName}`,
-        buyerEmail:    buyer.email,
-        buyerPhone:    buyer.phone,
+        agentName: `${agent.firstName} ${agent.lastName}`,
+        buyerName: `${buyer.firstName} ${buyer.lastName}`,
+        buyerEmail: buyer.email,
+        buyerPhone: buyer.phone,
         propertyTitle: property.title,
         message,
       }),
@@ -54,14 +58,14 @@ exports.getAgentInquiries = asyncHandler(async (req, res) => {
   const filter = { agentId: req.userId };
   if (status) filter.status = status;
 
-  const skip  = (Number(page) - 1) * Number(limit);
+  const skip = (Number(page) - 1) * Number(limit);
   const total = await Inquiry.countDocuments(filter);
 
   const inquiries = await Inquiry.find(filter)
     .sort({ updatedAt: -1 })
     .skip(skip)
     .limit(Number(limit))
-    .populate("buyerId",    "firstName lastName email phone")
+    .populate("buyerId", "firstName lastName email phone")
     .populate("propertyId", "title slug images city")
     .lean();
 
@@ -75,14 +79,14 @@ exports.getAgentInquiries = asyncHandler(async (req, res) => {
 // GET /api/inquiries/buyer — buyer sees their own inquiries
 exports.getBuyerInquiries = asyncHandler(async (req, res) => {
   const { page = 1, limit = 20 } = req.query;
-  const skip  = (Number(page) - 1) * Number(limit);
+  const skip = (Number(page) - 1) * Number(limit);
   const total = await Inquiry.countDocuments({ buyerId: req.userId });
 
   const inquiries = await Inquiry.find({ buyerId: req.userId })
     .sort({ updatedAt: -1 })
     .skip(skip)
     .limit(Number(limit))
-    .populate("agentId",    "firstName lastName email phone")
+    .populate("agentId", "firstName lastName email phone")
     .populate("propertyId", "title slug images city")
     .lean();
 
@@ -105,12 +109,14 @@ exports.replyToInquiry = asyncHandler(async (req, res) => {
   const isAgent = inquiry.agentId.toString() === req.userId;
   const isBuyer = inquiry.buyerId.toString() === req.userId;
   if (!isAgent && !isBuyer) throw new AppError("Not authorized.", 403);
+  if (inquiry.status === "closed") throw new AppError("Cannot reply to a closed inquiry.", 400);
 
   inquiry.replies.push({ senderId: req.userId, senderRole: req.user.role, message });
-  inquiry.status = "replied";
+  inquiry.status = isAgent ? "agent_replied" : "buyer_replied";
+  inquiry.lastReplyByRole = req.user.role;
+  inquiry.lastReplyAt = new Date();
   await inquiry.save();
 
-  // If agent replied, send email to buyer
   if (isAgent) {
     const [agent, buyer, property] = await Promise.all([
       User.findById(inquiry.agentId).select("firstName lastName"),
@@ -120,10 +126,26 @@ exports.replyToInquiry = asyncHandler(async (req, res) => {
     if (agent && buyer && property) {
       Promise.allSettled([
         sendInquiryReplyToBuyer(buyer.email, {
-          buyerName:     `${buyer.firstName} ${buyer.lastName}`,
-          agentName:     `${agent.firstName} ${agent.lastName}`,
+          buyerName: `${buyer.firstName} ${buyer.lastName}`,
+          agentName: `${agent.firstName} ${agent.lastName}`,
           propertyTitle: property.title,
-          replyMessage:  message,
+          replyMessage: message,
+        }),
+      ]);
+    }
+  } else {
+    const [agent, buyer, property] = await Promise.all([
+      User.findById(inquiry.agentId).select("firstName lastName email"),
+      User.findById(inquiry.buyerId).select("firstName lastName"),
+      require("../models/Property").findById(inquiry.propertyId).select("title"),
+    ]);
+    if (agent && buyer && property) {
+      Promise.allSettled([
+        sendInquiryReplyToAgent(agent.email, {
+          agentName: `${agent.firstName} ${agent.lastName}`,
+          buyerName: `${buyer.firstName} ${buyer.lastName}`,
+          propertyTitle: property.title,
+          replyMessage: message,
         }),
       ]);
     }

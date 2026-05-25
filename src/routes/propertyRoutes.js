@@ -1,14 +1,15 @@
-const express     = require("express");
-const router      = express.Router();
-const controller  = require("../controllers/propertyController");
-const protect     = require("../middleware/protect");
+const express = require("express");
+const router = express.Router();
+const controller = require("../controllers/propertyController");
+const protect = require("../middleware/protect");
 const requireRole = require("../middleware/requireRole");
 const tenantGuard = require("../middleware/tenantGuard");
-const validate    = require("../middleware/validate");
+const validate = require("../middleware/validate");
 const {
   createPropertySchema,
   updatePropertySchema,
   approvePropertySchema,
+  dealPropertySchema,
 } = require("../validators/propertyValidators");
 
 // ─── Public ───────────────────────────────────────────────────────────────────
@@ -26,6 +27,12 @@ router.get(
   "/agency/all",
   protect, requireRole("agency_admin"), tenantGuard,
   controller.getTenantProperties
+);
+
+router.get(
+  "/agency/summary",
+  protect, requireRole("agency_admin"), tenantGuard,
+  controller.getTenantPropertySummary
 );
 
 // ─── Super Admin — platform-wide (static, must be before /:slug) ─────────────
@@ -63,6 +70,13 @@ router.patch(
   "/:id/submit",
   protect, requireRole("agent", "agency_admin"),
   controller.submitProperty
+);
+
+router.patch(
+  "/:id/deal",
+  protect, requireRole("agent", "agency_admin"),
+  validate(dealPropertySchema),
+  controller.markPropertyDeal
 );
 
 // ─── Agency Admin — approve / reject ─────────────────────────────────────────

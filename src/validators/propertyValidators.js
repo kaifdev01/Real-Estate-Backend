@@ -1,32 +1,32 @@
 const { z } = require("zod");
 
 const createPropertySchema = z.object({
-  title:       z.string().min(5, "Title must be at least 5 characters").max(150).trim(),
+  title: z.string().min(5, "Title must be at least 5 characters").max(150).trim(),
   description: z.string().max(3000).trim().optional(),
   listingType: z.enum(["for_sale", "for_rent"], { errorMap: () => ({ message: "listingType must be for_sale or for_rent" }) }),
-  category:    z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"], {
+  category: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"], {
     errorMap: () => ({ message: "Invalid category" }),
   }),
-  price:    z.number({ invalid_type_error: "Price must be a number" }).min(0),
+  price: z.number({ invalid_type_error: "Price must be a number" }).min(0),
   currency: z.string().default("PKR"),
-  address:  z.string().trim().optional(),
-  city:     z.string().min(1, "City is required").trim(),
-  area:     z.string().trim().optional(),
+  address: z.string().trim().optional(),
+  city: z.string().min(1, "City is required").trim(),
+  area: z.string().trim().optional(),
   coordinates: z.object({
     lat: z.number(),
     lng: z.number(),
   }).optional(),
-  size:      z.number().min(1).optional(),
-  beds:      z.number().min(0).optional(),
-  baths:     z.number().min(0).optional(),
-  parking:   z.number().min(0).default(0),
-  floors:    z.number().min(1).optional(),
+  size: z.number().min(1).optional(),
+  beds: z.number().min(0).optional(),
+  baths: z.number().min(0).optional(),
+  parking: z.number().min(0).default(0),
+  floors: z.number().min(1).optional(),
   yearBuilt: z.number().min(1900).max(new Date().getFullYear()).optional(),
   amenities: z.array(z.string().trim()).default([]),
   images: z.array(z.object({
-    url:      z.string().url("Invalid image URL"),
+    url: z.string().url("Invalid image URL"),
     publicId: z.string().optional(),
-    isCover:  z.boolean().default(false),
+    isCover: z.boolean().default(false),
   })).default([]),
 });
 
@@ -40,24 +40,29 @@ const approvePropertySchema = z.object({
   { message: "rejectionReason is required when rejecting", path: ["rejectionReason"] }
 );
 
+const dealPropertySchema = z.object({
+  action: z.enum(["sold", "rented", "closed"], { errorMap: () => ({ message: "action must be sold, rented or closed" }) }),
+});
+
 const propertyQuerySchema = z.object({
-  page:        z.coerce.number().min(1).default(1),
-  limit:       z.coerce.number().min(1).max(50).default(20),
-  city:        z.string().trim().optional(),
-  category:    z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"]).optional(),
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(50).default(20),
+  city: z.string().trim().optional(),
+  category: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"]).optional(),
   listingType: z.enum(["for_sale", "for_rent"]).optional(),
-  minPrice:    z.coerce.number().min(0).optional(),
-  maxPrice:    z.coerce.number().min(0).optional(),
-  beds:        z.coerce.number().min(0).optional(),
-  minSize:     z.coerce.number().min(0).optional(),
-  maxSize:     z.coerce.number().min(0).optional(),
-  sort:        z.enum(["newest", "oldest", "price_asc", "price_desc"]).default("newest"),
-  featured:    z.coerce.boolean().optional(),
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+  beds: z.coerce.number().min(0).optional(),
+  minSize: z.coerce.number().min(0).optional(),
+  maxSize: z.coerce.number().min(0).optional(),
+  sort: z.enum(["newest", "oldest", "price_asc", "price_desc"]).default("newest"),
+  featured: z.coerce.boolean().optional(),
 });
 
 module.exports = {
   createPropertySchema,
   updatePropertySchema,
   approvePropertySchema,
+  dealPropertySchema,
   propertyQuerySchema,
 };

@@ -12,6 +12,7 @@ const {
   loginSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  completeAgentInvitationSchema,
   verifyEmailSchema,
 } = require("../validators/authValidators");
 
@@ -20,6 +21,7 @@ router.post("/register/buyer",   validate(registerBuyerSchema),   authController
 router.post("/register/agent",   validate(registerAgentSchema),   authController.registerAgent);
 router.post("/register/agency",  validate(registerAgencySchema),  authController.registerAgency);
 router.post("/verify-email",     validate(verifyEmailSchema),     authController.verifyEmail);
+router.post("/complete-agent-invitation", validate(completeAgentInvitationSchema), authController.completeAgentInvitation);
 router.post("/resend-verification", authController.resendVerification);
 router.post("/login",            validate(loginSchema),           authController.login);
 router.post("/refresh",                                           authController.refreshToken);
