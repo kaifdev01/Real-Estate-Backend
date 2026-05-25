@@ -27,12 +27,13 @@ const sendDevError = (err, res) => {
   const statusCode = Number.isInteger(err.statusCode) && err.statusCode >= 100 && err.statusCode < 600
     ? err.statusCode
     : 500;
+  // Hide stack for expected auth errors (401/403) to reduce console noise
+  const isExpectedAuthError = statusCode === 401 || statusCode === 403;
   res.status(statusCode).json({
     success: false,
     status: err.status,
     message: err.message,
-    stack: err.stack,
-    error: err,
+    ...(isExpectedAuthError ? {} : { stack: err.stack, error: err }),
   });
 };
 
