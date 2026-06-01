@@ -41,7 +41,7 @@ const approvePropertySchema = z.object({
 );
 
 const dealPropertySchema = z.object({
-  action: z.enum(["sold", "rented", "closed"], { errorMap: () => ({ message: "action must be sold, rented or closed" }) }),
+  action: z.enum(["sold", "rented", "closed", "available"], { errorMap: () => ({ message: "action must be sold, rented, closed or available" }) }),
 });
 
 const propertyQuerySchema = z.object({

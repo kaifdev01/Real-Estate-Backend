@@ -12,6 +12,7 @@ const agentRoutes       = require("./src/routes/agentRoutes");
 const uploadRoutes      = require("./src/routes/uploadRoutes");
 const inquiryRoutes     = require("./src/routes/inquiryRoutes");
 const appointmentRoutes = require("./src/routes/appointmentRoutes");
+const adminRoutes       = require("./src/routes/adminRoutes");
 const errorHandler      = require("./src/middleware/errorHandler");
 const AppError     = require("./src/utils/AppError");
 
@@ -59,6 +60,7 @@ app.use("/api/agents",                   agentRoutes);
 app.use("/api/upload",                   uploadRoutes);
 app.use("/api/inquiries",                inquiryRoutes);
 app.use("/api/appointments",             appointmentRoutes);
+app.use("/api/admin",                    adminRoutes);
 
 // Health check
 app.get("/api/health", (req, res) =>

@@ -2,6 +2,7 @@ const crypto = require("crypto");
 const mongoose = require("mongoose");
 const User = require("../models/User");
 const Property = require("../models/Property");
+const Tenant = require("../models/Tenant");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 const { sendAgentInvitationEmail } = require("../services/emailService");
@@ -104,6 +105,13 @@ exports.inviteAgent = asyncHandler(async (req, res) => {
       message: "Agent invitation resent.",
       data: { agent: existingUser.toPublicJSON() },
     });
+  }
+
+  const tenant = await Tenant.findById(tenantId);
+  if (!tenant) throw new AppError("Tenant not found.", 404);
+  const agentCount = await User.countDocuments({ tenantId, role: "agent" });
+  if (agentCount >= (tenant.settings?.maxAgents || 1)) {
+    throw new AppError(`Your current plan allows ${tenant.settings?.maxAgents || 1} agent(s). Upgrade your plan to invite more agents.`, 403);
   }
 
   const agent = await User.create({

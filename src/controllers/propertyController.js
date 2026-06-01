@@ -1,6 +1,7 @@
 const Property = require("../models/Property");
 const mongoose = require("mongoose");
 const User = require("../models/User");
+const Tenant = require("../models/Tenant");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 const { propertyQuerySchema } = require("../validators/propertyValidators");
@@ -93,6 +94,18 @@ exports.getPropertyBySlug = asyncHandler(async (req, res) => {
 exports.createProperty = asyncHandler(async (req, res) => {
   const tenantId = req.user.tenantId || req.tenantId || null;
   const shouldQueueForApproval = req.user.role === "agent" && tenantId;
+
+  if (tenantId) {
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) throw new AppError("Tenant not found.", 404);
+    const listingCount = await Property.countDocuments({
+      tenantId,
+      status: { $nin: ["archived", "closed"] },
+    });
+    if (listingCount >= (tenant.settings?.maxListings || 3)) {
+      throw new AppError(`Your current plan allows ${tenant.settings?.maxListings || 3} active listing(s). Upgrade your plan to add more properties.`, 403);
+    }
+  }
 
   const property = await Property.create({
     ...req.body,
@@ -234,6 +247,22 @@ exports.markPropertyDeal = asyncHandler(async (req, res) => {
 
   const property = await Property.findOne(filter);
   if (!property) throw new AppError("Property not found.", 404);
+
+  if (action === "available") {
+    if (property.status !== "rented") {
+      throw new AppError("Only rented listings can be made available again.", 400);
+    }
+    property.status = "approved";
+    property.dealClosedAt = undefined;
+    await property.save();
+
+    return res.json({
+      success: true,
+      message: "Property is available for rent again.",
+      data: { property },
+    });
+  }
+
   if (["sold", "rented"].includes(action) && property.status !== "approved") {
     throw new AppError("Only approved listings can be marked as sold or rented.", 400);
   }
