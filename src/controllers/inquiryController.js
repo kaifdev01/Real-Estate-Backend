@@ -151,7 +151,13 @@ exports.replyToInquiry = asyncHandler(async (req, res) => {
     }
   }
 
-  res.json({ success: true, data: { inquiry } });
+  const populatedInquiry = await Inquiry.findById(inquiry._id)
+    .populate("buyerId", "firstName lastName email phone")
+    .populate("agentId", "firstName lastName email phone")
+    .populate("propertyId", "title slug images city")
+    .lean();
+
+  res.json({ success: true, data: { inquiry: populatedInquiry } });
 });
 
 // PATCH /api/inquiries/:id/close — agent closes inquiry

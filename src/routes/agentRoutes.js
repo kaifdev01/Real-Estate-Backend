@@ -45,6 +45,7 @@ router.patch(
 );
 
 router.get("/:id", controller.getAgentById);
+router.post("/:id/message", controller.sendDirectMessage);
 
 // Agent updates own profile
 router.patch("/profile", protect, requireRole("agent", "agency_admin"), controller.updateAgentProfile);

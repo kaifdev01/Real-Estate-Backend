@@ -4,7 +4,10 @@ const User = require("../models/User");
 const Property = require("../models/Property");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
-const { sendAgentInvitationEmail } = require("../services/emailService");
+const {
+  sendAgentInvitationEmail,
+  sendAgentDirectMessage,
+} = require("../services/emailService");
 
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
@@ -256,6 +259,41 @@ exports.getAgentById = asyncHandler(async (req, res) => {
       listings,
     },
   });
+});
+
+// ─── POST /api/agents/:id/message — Public direct message to agent ──────────
+
+exports.sendDirectMessage = asyncHandler(async (req, res) => {
+  const { name, email, phone, message } = req.body;
+
+  if (!name || !message) {
+    throw new AppError("name and message are required.", 400);
+  }
+  if (!email && !phone) {
+    throw new AppError("Please provide an email or phone number.", 400);
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new AppError("Please provide a valid email address.", 400);
+  }
+
+  const agent = await User.findOne({
+    _id: req.params.id,
+    role: "agent",
+    status: "active",
+    isVerified: true,
+  }).select("firstName lastName email");
+
+  if (!agent) throw new AppError("Agent not found.", 404);
+
+  await sendAgentDirectMessage(agent.email, {
+    agentName: `${agent.firstName} ${agent.lastName}`,
+    senderName: name,
+    senderEmail: email,
+    senderPhone: phone,
+    message,
+  });
+
+  res.status(201).json({ success: true, message: "Message sent to agent." });
 });
 
 // ─── PATCH /api/agents/profile — Agent updates own profile ───────────────────
