@@ -247,6 +247,36 @@ const sendInquiryReplyToBuyer = (buyerEmail, { buyerName, agentName, propertyTit
       </div>`,
   });
 
+const escapeHtml = (value = "") =>
+  String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
+const sendAgentDirectMessage = (agentEmail, { agentName, senderName, senderEmail, senderPhone, message }) =>
+  sendMail({
+    to: agentEmail,
+    subject: `New Direct Message from ${escapeHtml(senderName)}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1A3C5E;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">New Direct Message</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate Agent Profile</p>
+        </div>
+        <p style="color:#333">Hi <strong>${escapeHtml(agentName)}</strong>,</p>
+        <p style="color:#555;font-size:14px">Someone contacted you from your public agent profile.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Name</td><td style="padding:10px 14px;color:#333">${escapeHtml(senderName)}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Email</td><td style="padding:10px 14px;color:#333">${escapeHtml(senderEmail || "Not provided")}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Phone</td><td style="padding:10px 14px;color:#333">${escapeHtml(senderPhone || "Not provided")}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Message</td><td style="padding:10px 14px;color:#333">${escapeHtml(message)}</td></tr>
+        </table>
+        <p style="color:#aaa;font-size:11px;margin-top:24px">This is an automated notification from LuxEstate.</p>
+      </div>`,
+  });
+
 module.exports = {
   sendVerificationEmail,
   sendWelcomeEmail,
@@ -259,4 +289,5 @@ module.exports = {
   sendInquiryNotificationToAgent,
   sendInquiryReplyToAgent,
   sendInquiryReplyToBuyer,
+  sendAgentDirectMessage,
 };
