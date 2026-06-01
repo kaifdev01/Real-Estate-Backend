@@ -20,8 +20,8 @@ const tenantSchema = new mongoose.Schema(
       stripeSubscriptionId: { type: String },
     },
     settings: {
-      maxAgents: { type: Number, default: 5 },
-      maxListings: { type: Number, default: 20 },
+      maxAgents: { type: Number, default: 1 },
+      maxListings: { type: Number, default: 3 },
     },
   },
   { timestamps: true }

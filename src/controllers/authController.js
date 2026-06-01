@@ -4,6 +4,7 @@ const Tenant = require("../models/Tenant");
 const RefreshToken = require("../models/RefreshToken");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
+const { getPlan } = require("../utils/subscriptionPlans");
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -118,12 +119,15 @@ exports.registerAgency = asyncHandler(async (req, res) => {
   const finalSlug = slugExists ? `${slug}-${Date.now()}` : slug;
 
   // Create tenant
+  const freePlan = getPlan("free");
   const tenant = await Tenant.create({
     name: agencyName,
     slug: finalSlug,
     email: agencyEmail,
     phone: agencyPhone,
     status: "trial",
+    subscription: { plan: "free", startDate: new Date() },
+    settings: { maxAgents: freePlan.maxAgents, maxListings: freePlan.maxListings },
   });
 
   // Create agency_admin user linked to tenant
