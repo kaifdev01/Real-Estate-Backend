@@ -13,6 +13,8 @@ const uploadRoutes      = require("./src/routes/uploadRoutes");
 const inquiryRoutes     = require("./src/routes/inquiryRoutes");
 const appointmentRoutes = require("./src/routes/appointmentRoutes");
 const adminRoutes       = require("./src/routes/adminRoutes");
+const subscriptionPlanRoutes = require("./src/routes/subscriptionPlanRoutes");
+const paymentRoutes     = require("./src/routes/paymentRoutes");
 const errorHandler      = require("./src/middleware/errorHandler");
 const AppError     = require("./src/utils/AppError");
 const { seedDefaultPlans } = require("./src/utils/subscriptionPlans");
@@ -61,6 +63,8 @@ app.use("/api/agents",                   agentRoutes);
 app.use("/api/upload",                   uploadRoutes);
 app.use("/api/inquiries",                inquiryRoutes);
 app.use("/api/appointments",             appointmentRoutes);
+app.use("/api/subscription-plans",       subscriptionPlanRoutes);
+app.use("/api/payments",                 paymentRoutes);
 app.use("/api/admin",                    adminRoutes);
 
 // Health check

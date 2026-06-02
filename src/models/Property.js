@@ -65,6 +65,8 @@ const propertySchema = new mongoose.Schema(
     size: { type: Number },           // sq ft
     beds: { type: Number, min: 0 },
     baths: { type: Number, min: 0 },
+    kitchens: { type: Number, min: 0, default: 0 },
+    attachedBathrooms: { type: Number, min: 0, default: 0 },
     parking: { type: Number, min: 0, default: 0 },
     floors: { type: Number, min: 1 },
     yearBuilt: { type: Number },

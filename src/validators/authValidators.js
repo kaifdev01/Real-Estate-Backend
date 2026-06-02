@@ -27,6 +27,7 @@ const registerAgentSchema = z.object({
   phone: z.string().min(7, "Invalid phone number"),
   password: passwordSchema,
   confirmPassword: z.string(),
+  plan: z.string().min(1, "Plan is required").trim().optional(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -43,6 +44,7 @@ const registerAgencySchema = z.object({
   adminPhone: z.string().min(7, "Invalid phone number"),
   password: passwordSchema,
   confirmPassword: z.string(),
+  plan: z.string().min(1, "Plan is required").trim().optional(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
