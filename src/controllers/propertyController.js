@@ -456,7 +456,11 @@ exports.submitProperty = asyncHandler(async (req, res) => {
   property.rejectionReason = undefined;
   await property.save();
 
-  res.json({ success: true, message: "Property submitted for review.", data: { property } });
+  const message = property.featured
+    ? "Property submitted as featured. Awaiting super admin approval."
+    : "Property submitted for review.";
+
+  res.json({ success: true, message, data: { property } });
 });
 
 // ─── PATCH /api/properties/:id/review — Agency admin approves or rejects ──────

@@ -80,6 +80,9 @@ exports.registerAgent = asyncHandler(async (req, res) => {
   const exists = await User.findOne({ email });
   if (exists) throw new AppError("Email already registered.", 409);
 
+  const planConfig = await findPlan(plan);
+  if (!planConfig) throw new AppError("Selected subscription plan is invalid.", 400);
+
   const verificationCode = generateOTP();
   const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
   const selectedPlan = await resolveSignupPlan(plan, "agent");
@@ -99,6 +102,12 @@ exports.registerAgent = asyncHandler(async (req, res) => {
     },
     verificationCode,
     verificationCodeExpires,
+  });
+
+  await assignPlanToUser(user._id.toString(), planConfig.slug || planConfig.id, {
+    status: planConfig.priceMonthly > 0 ? "pending" : "active",
+    billingInterval: planConfig.billing || "monthly",
+    paymentProvider: "stripe",
   });
 
   await sendVerificationEmail(email, verificationCode);
@@ -123,8 +132,11 @@ exports.registerAgency = asyncHandler(async (req, res) => {
     User.findOne({ email: adminEmail }),
     Tenant.findOne({ email: agencyEmail }),
   ]);
-  if (emailExists)  throw new AppError("Admin email already registered.", 409);
+  if (emailExists) throw new AppError("Admin email already registered.", 409);
   if (agencyExists) throw new AppError("Agency email already registered.", 409);
+
+  const planConfig = await findPlan(plan);
+  if (!planConfig) throw new AppError("Selected subscription plan is invalid.", 400);
 
   // Create slug from agency name
   const slug = agencyName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -161,6 +173,12 @@ exports.registerAgency = asyncHandler(async (req, res) => {
     tenantId: tenant._id,
     verificationCode,
     verificationCodeExpires,
+  });
+
+  await assignPlanToTenant(tenant._id.toString(), planConfig.slug || planConfig.id, {
+    status: planConfig.priceMonthly > 0 ? "pending" : "active",
+    billingInterval: planConfig.billing || "monthly",
+    paymentProvider: "stripe",
   });
 
   await sendVerificationEmail(adminEmail, verificationCode);
@@ -271,14 +289,14 @@ exports.login = asyncHandler(async (req, res) => {
     throw new AppError("Please verify your email before logging in.", 401);
   }
   if (user.status === "suspended") throw new AppError("Account suspended.", 403);
-  if (user.status === "inactive")  throw new AppError("Account inactive.", 403);
+  if (user.status === "inactive") throw new AppError("Account inactive.", 403);
 
   const isMatch = await user.comparePassword(password);
   if (!isMatch) throw new AppError("Invalid credentials.", 401);
 
   // Generate tokens
   const tokenPayload = { id: user._id, role: user.role, tenantId: user.tenantId };
-  const accessToken  = generateAccessToken(tokenPayload);
+  const accessToken = generateAccessToken(tokenPayload);
   const refreshToken = generateRefreshToken({ id: user._id });
 
   const deviceInfo = getDeviceInfo(req);
@@ -290,7 +308,7 @@ exports.login = asyncHandler(async (req, res) => {
   });
 
   // Update last login
-  user.lastLogin   = new Date();
+  user.lastLogin = new Date();
   user.lastLoginIp = deviceInfo.ip;
   await user.save({ validateBeforeSave: false });
 
