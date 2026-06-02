@@ -71,6 +71,7 @@ const propertySchema = new mongoose.Schema(
       default: "draft",
     },
     rejectionReason: { type: String },
+    featured: { type: Boolean, default: false },           // requires super_admin approval
     featuredUntil: { type: Date },          // paid featured boost expiry
     archivedAt: { type: Date },
     dealClosedAt: { type: Date },

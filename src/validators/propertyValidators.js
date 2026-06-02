@@ -22,6 +22,7 @@ const createPropertySchema = z.object({
   parking: z.number().min(0).default(0),
   floors: z.number().min(1).optional(),
   yearBuilt: z.number().min(1900).max(new Date().getFullYear()).optional(),
+  featured: z.boolean().default(false),
   amenities: z.array(z.string().trim()).default([]),
   images: z.array(z.object({
     url: z.string().url("Invalid image URL"),
