@@ -45,6 +45,7 @@ exports.registerBuyer = asyncHandler(async (req, res) => {
 
   const verificationCode = generateOTP();
   const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
+  const freePlan = await getPlan("free", "agent");
 
   const user = await User.create({
     firstName,
@@ -88,6 +89,11 @@ exports.registerAgent = asyncHandler(async (req, res) => {
     password,
     role: "agent",
     tenantId: null,
+    subscription: { plan: "free", startDate: new Date(), status: "active" },
+    settings: {
+      maxListings: freePlan.maxListings,
+      maxFeaturedListings: freePlan.maxFeaturedListings,
+    },
     verificationCode,
     verificationCodeExpires,
   });
@@ -132,17 +138,19 @@ exports.registerAgency = asyncHandler(async (req, res) => {
   const slugExists = await Tenant.findOne({ slug });
   const finalSlug = slugExists ? `${slug}-${Date.now()}` : slug;
 
-  const now = new Date();
+  // Create tenant
+  const freePlan = await getPlan("free", "agency");
   const tenant = await Tenant.create({
     name: agencyName,
     slug: finalSlug,
     email: agencyEmail,
     phone: agencyPhone,
-    status: planConfig.priceMonthly > 0 ? "trial" : "active",
-    subscription: { plan: planConfig.slug || planConfig.id, startDate: now },
+    status: "trial",
+    subscription: { plan: "free", startDate: new Date() },
     settings: {
-      maxAgents: (planConfig.limits && planConfig.limits.maxAgents) || 1,
-      maxListings: (planConfig.limits && planConfig.limits.maxListings) || 3,
+      maxAgents: freePlan.maxAgents,
+      maxListings: freePlan.maxListings,
+      maxFeaturedListings: freePlan.maxFeaturedListings,
     },
   });
 

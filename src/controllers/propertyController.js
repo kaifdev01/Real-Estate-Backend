@@ -5,6 +5,8 @@ const Tenant = require("../models/Tenant");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 const { propertyQuerySchema, mapSearchQuerySchema } = require("../validators/propertyValidators");
+const { getPlan } = require("../utils/subscriptionPlans");
+const { sendPropertyApprovalRequestEmail } = require("../services/emailService");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +22,78 @@ const buildSortQuery = (sort) => {
 const getTenantAgentIds = async (tenantId) => {
   const agents = await User.find({ tenantId, role: "agent" }).select("_id").lean();
   return agents.map((agent) => agent._id);
+};
+
+const FEATURED_DURATION_DAYS = 30;
+
+const getSubscriptionContext = async (user) => {
+  if (user.tenantId) {
+    const tenant = await Tenant.findById(user.tenantId);
+    if (!tenant) throw new AppError("Tenant not found.", 404);
+    const plan = await getPlan(tenant.subscription?.plan || "free", "agency");
+    return { scope: "agency", tenant, plan };
+  }
+
+  const dbUser = await User.findById(user._id || user.id);
+  const plan = await getPlan(dbUser?.subscription?.plan || "free", "agent");
+  return { scope: "agent", user: dbUser, plan };
+};
+
+const countActiveFeatured = async ({ scope, tenant, user }) => {
+  const filter = {
+    $or: [
+      { featuredUntil: { $gt: new Date() } },
+      { featuredApprovalStatus: "pending" },
+    ],
+  };
+  if (scope === "agency") filter.tenantId = tenant._id;
+  else filter.agentId = user._id;
+  return Property.countDocuments(filter);
+};
+
+const ensureFeaturedAllowed = async (user) => {
+  const context = await getSubscriptionContext(user);
+  const limit = context.plan.maxFeaturedListings ?? context.plan.limits?.maxFeaturedListings ?? 0;
+  if (limit <= 0) throw new AppError("Your current subscription does not allow featured properties.", 403);
+
+  const activeFeatured = await countActiveFeatured(context);
+  if (activeFeatured >= limit) {
+    throw new AppError(`Your current plan allows ${limit} featured listing(s). Upgrade your plan to request more.`, 403);
+  }
+};
+
+const notifySuperAdminsForApproval = async ({ property, submitter, featured = false }) => {
+  const admins = await User.find({ role: "super_admin", status: "active" }).select("email firstName lastName").lean();
+  await Promise.allSettled(admins.map((admin) => sendPropertyApprovalRequestEmail(admin.email, {
+    propertyTitle: property.title,
+    city: property.city,
+    submitterName: `${submitter.firstName || ""} ${submitter.lastName || ""}`.trim() || submitter.email,
+    submitterRole: submitter.role,
+    featured,
+  })));
+};
+
+const applyFeaturedRequest = (property, wantsFeatured) => {
+  if (wantsFeatured) {
+    property.featuredRequested = true;
+    property.featuredApprovalStatus = "pending";
+    property.featuredRequestedAt = new Date();
+    property.featuredRejectionReason = undefined;
+    property.featuredReviewNotes = undefined;
+    property.featuredPreviousStatus = property.status;
+    property.status = "pending_featured_approval";
+    return;
+  }
+
+  if (wantsFeatured === false) {
+    property.featuredRequested = false;
+    property.featuredApprovalStatus = "none";
+    property.featuredRequestedAt = undefined;
+    property.featuredRejectionReason = undefined;
+    property.featuredReviewNotes = undefined;
+    property.featuredPreviousStatus = undefined;
+    property.featuredUntil = undefined;
+  }
 };
 
 const mapSearchCache = new Map();
@@ -260,44 +334,52 @@ exports.getPropertyBySlug = asyncHandler(async (req, res) => {
 
 exports.createProperty = asyncHandler(async (req, res) => {
   const tenantId = req.user.tenantId || req.tenantId || null;
-  const shouldQueueForApproval = req.user.role === "agent" && tenantId;
+  const shouldQueueForApproval = Boolean(tenantId);
 
   if (tenantId) {
     const tenant = await Tenant.findById(tenantId);
     if (!tenant) throw new AppError("Tenant not found.", 404);
+    const plan = await getPlan(tenant.subscription?.plan || "free", "agency");
     const listingCount = await Property.countDocuments({
       tenantId,
       status: { $nin: ["archived", "closed"] },
     });
-    if (listingCount >= (tenant.settings?.maxListings || 3)) {
-      throw new AppError(`Your current plan allows ${tenant.settings?.maxListings || 3} active listing(s). Upgrade your plan to add more properties.`, 403);
+    const maxListings = tenant.settings?.maxListings ?? plan.maxListings ?? 3;
+    if (listingCount >= maxListings) {
+      throw new AppError(`Your current plan allows ${maxListings} active listing(s). Upgrade your plan to add more properties.`, 403);
+    }
+  } else {
+    const { plan } = await getSubscriptionContext(req.user);
+    const listingCount = await Property.countDocuments({
+      agentId: req.userId,
+      status: { $nin: ["archived", "closed"] },
+    });
+    if (listingCount >= (plan.maxListings || 3)) {
+      throw new AppError(`Your current plan allows ${plan.maxListings || 3} active listing(s). Upgrade your plan to add more properties.`, 403);
     }
   }
 
-  if (req.user.role === "agent") {
-    const agentMaxListings = req.user.settings?.maxListings;
-    if (typeof agentMaxListings === "number") {
-      const agentListingCount = await Property.countDocuments({
-        agentId: req.userId,
-        status: { $nin: ["archived", "closed"] },
-      });
-      if (agentListingCount >= agentMaxListings) {
-        throw new AppError(`Your current agent plan allows ${agentMaxListings} active listing(s). Upgrade your plan to add more properties.`, 403);
-      }
-    }
-  }
+  const { featured, ...propertyBody } = req.body;
+  if (featured) await ensureFeaturedAllowed(req.user);
 
   const property = await Property.create({
-    ...req.body,
+    ...propertyBody,
+    featuredRequested: Boolean(featured),
+    featuredApprovalStatus: featured ? "pending" : "none",
+    featuredRequestedAt: featured ? new Date() : undefined,
     agentId: req.userId,
     tenantId,
-    status: shouldQueueForApproval ? "submitted" : "draft",
+    status: featured ? "pending_featured_approval" : shouldQueueForApproval ? "submitted" : "draft",
   });
+
+  if (shouldQueueForApproval || featured) {
+    await notifySuperAdminsForApproval({ property, submitter: req.user, featured: Boolean(featured) });
+  }
 
   res.status(201).json({
     success: true,
     message: shouldQueueForApproval
-      ? "Property created and submitted for agency approval."
+      ? "Property created and submitted for approval."
       : "Property created as draft.",
     data: { property },
   });
@@ -316,7 +398,10 @@ exports.updateProperty = asyncHandler(async (req, res) => {
   // If approved/submitted, editing resets status back to draft for re-review
   const needsReReview = ["approved", "submitted"].includes(property.status);
 
-  Object.assign(property, req.body);
+  const { featured, ...updates } = req.body;
+  if (featured) await ensureFeaturedAllowed(req.user);
+  Object.assign(property, updates);
+  applyFeaturedRequest(property, featured);
 
   if (needsReReview) {
     property.status = "draft";
@@ -461,6 +546,125 @@ exports.markPropertyDeal = asyncHandler(async (req, res) => {
   res.json({
     success: true,
     message: `Property marked as ${action}.`,
+    data: { property },
+  });
+});
+
+// GET /api/properties/admin/featured-approvals — Super admin reviews featured requests
+exports.getFeaturedApprovals = asyncHandler(async (req, res) => {
+  const { status = "pending", page = 1, limit = 50 } = req.query;
+  const filter = {};
+
+  if (status && status !== "all") {
+    filter.featuredApprovalStatus = status;
+  } else {
+    filter.featuredRequested = true;
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [properties, total] = await Promise.all([
+    Property.find(filter)
+      .sort({ featuredRequestedAt: -1, updatedAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .populate("agentId", "firstName lastName email phone")
+      .populate("tenantId", "name slug logo")
+      .lean(),
+    Property.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    data: { properties },
+    pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+  });
+});
+
+// GET /api/properties/admin/approvals — Super admin reviews submitted tenant listings
+exports.getAdminPropertyApprovals = asyncHandler(async (req, res) => {
+  const { status = "submitted", page = 1, limit = 50 } = req.query;
+  const filter = {};
+  if (status && status !== "all") filter.status = status;
+  else filter.status = { $in: ["submitted", "approved", "rejected"] };
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [properties, total] = await Promise.all([
+    Property.find(filter)
+      .sort({ updatedAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .populate("agentId", "firstName lastName email phone")
+      .populate("tenantId", "name slug logo")
+      .lean(),
+    Property.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    data: { properties },
+    pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
+  });
+});
+
+// PATCH /api/properties/admin/approvals/:id — Super admin approves/rejects tenant listing
+exports.reviewAdminPropertyApproval = asyncHandler(async (req, res) => {
+  const { action, rejectionReason } = req.body;
+  const property = await Property.findById(req.params.id);
+  if (!property) throw new AppError("Property not found.", 404);
+  if (property.status !== "submitted") {
+    throw new AppError("Only submitted properties can be reviewed.", 400);
+  }
+
+  if (action === "approve") {
+    property.status = "approved";
+    property.rejectionReason = undefined;
+  } else {
+    property.status = "rejected";
+    property.rejectionReason = rejectionReason;
+  }
+
+  await property.save();
+  res.json({
+    success: true,
+    message: `Property ${action === "approve" ? "approved" : "rejected"}.`,
+    data: { property },
+  });
+});
+
+// PATCH /api/properties/admin/featured-approvals/:id — Super admin approves/rejects featured boost
+exports.reviewFeaturedApproval = asyncHandler(async (req, res) => {
+  const { action, rejectionReason, notes } = req.body;
+  const property = await Property.findById(req.params.id);
+  if (!property) throw new AppError("Property not found.", 404);
+  if (property.featuredApprovalStatus !== "pending") {
+    throw new AppError("Only pending featured requests can be reviewed.", 400);
+  }
+
+  property.featuredRequested = true;
+  property.featuredApprovalStatus = action === "approve" ? "approved" : "rejected";
+  property.featuredReviewedAt = new Date();
+  property.featuredReviewedBy = req.userId;
+  property.featuredReviewNotes = notes;
+
+  if (action === "approve") {
+    property.featuredUntil = new Date(Date.now() + FEATURED_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    property.featuredRejectionReason = undefined;
+    property.status = property.featuredPreviousStatus && property.featuredPreviousStatus !== "pending_featured_approval"
+      ? property.featuredPreviousStatus
+      : "approved";
+  } else {
+    property.featuredUntil = undefined;
+    property.featuredRejectionReason = rejectionReason;
+    property.status = property.featuredPreviousStatus && property.featuredPreviousStatus !== "pending_featured_approval"
+      ? property.featuredPreviousStatus
+      : "rejected";
+  }
+
+  await property.save();
+
+  res.json({
+    success: true,
+    message: action === "approve" ? "Featured request approved." : "Featured request rejected.",
     data: { property },
   });
 });

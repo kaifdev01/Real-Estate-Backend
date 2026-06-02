@@ -277,67 +277,25 @@ const sendAgentDirectMessage = (agentEmail, { agentName, senderName, senderEmail
       </div>`,
   });
 
-const sendContactFormEmail = (adminEmail, { senderName, senderEmail, senderPhone, subject, message, adminName }) => {
-  const subjectMap = {
-    buy: "🏠 Property Inquiry - Buyer Interested",
-    sell: "🏪 Selling Service - New Lead",
-    rent: "🔑 Rental Inquiry - Looking to Rent",
-    invest: "💰 Investment Inquiry - Potential Client",
-    other: "📩 Website Contact Form",
-  };
-
-  return sendMail({
+const sendPropertyApprovalRequestEmail = (adminEmail, { propertyTitle, city, submitterName, submitterRole, featured }) =>
+  sendMail({
     to: adminEmail,
-    subject: `[Contact Form] ${subjectMap[subject] || "New Website Inquiry"}`,
+    subject: `${featured ? "Featured " : ""}Property Approval Request — ${propertyTitle}`,
     html: `
-      <div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px;background:#fafafa">
-        <div style="background:#1A3C5E;padding:24px;border-radius:8px;margin-bottom:24px;text-align:center">
-          <h2 style="color:#C9A84C;margin:0;font-size:22px;font-weight:bold">New Website Contact Form</h2>
-          <p style="color:#fff;margin:8px 0 0;font-size:13px;opacity:0.9">LuxEstate — Public Inquiry</p>
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1A3C5E;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">Property Approval Required</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate Admin Notification</p>
         </div>
-
-        <p style="color:#333;font-size:15px;font-weight:600">Hello ${adminName},</p>
-        
-        <div style="background:#fff;border:1px solid #e5e7eb;border-radius:8px;padding:24px;margin:20px 0">
-          <table style="width:100%;border-collapse:collapse">
-            <tr>
-              <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#1A3C5E;font-weight:600;width:30%">Name</td>
-              <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#555">${escapeHtml(senderName)}</td>
-            </tr>
-            <tr>
-              <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#1A3C5E;font-weight:600">Email</td>
-              <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#555"><a href="mailto:${senderEmail}" style="color:#C9A84C;text-decoration:none">${senderEmail}</a></td>
-            </tr>
-            <tr>
-              <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#1A3C5E;font-weight:600">Phone</td>
-              <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#555">${escapeHtml(senderPhone || "Not provided")}</td>
-            </tr>
-            <tr>
-              <td style="padding:12px 0;color:#1A3C5E;font-weight:600">Subject</td>
-              <td style="padding:12px 0;color:#555">${subjectMap[subject] || subject}</td>
-            </tr>
-          </table>
-        </div>
-
-        <div style="background:#F5F2ED;border-left:4px solid #C9A84C;border-radius:0 6px 6px 0;padding:18px 20px;margin:20px 0">
-          <p style="color:#666;font-size:13px;margin:0 0 10px;text-transform:uppercase;font-weight:600;letter-spacing:0.5px">Message</p>
-          <p style="color:#333;font-size:15px;line-height:1.6;margin:0;white-space:pre-wrap">${escapeHtml(message)}</p>
-        </div>
-
-        <div style="background:#e8f5e9;border:1px solid #c8e6c9;border-radius:8px;padding:16px 20px;margin:24px 0">
-          <p style="color:#1b5e20;font-size:13px;margin:0">
-            <strong>Quick Action:</strong> Reply directly to <a href="mailto:${senderEmail}" style="color:#1b5e20;font-weight:600;text-decoration:underline">${senderEmail}</a> to continue the conversation.
-          </p>
-        </div>
-
-        <a href="${process.env.CLIENT_URL}/dashboard/super-admin_dashboard" style="display:inline-block;margin-top:20px;padding:12px 28px;background:#C9A84C;color:#fff;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;transition:background 0.2s">View All Inquiries</a>
-
-        <p style="color:#999;font-size:11px;margin-top:32px;padding-top:20px;border-top:1px solid #e5e7eb">
-          This is an automated notification from LuxEstate contact form. Sent on ${new Date().toLocaleString()}
-        </p>
+        <p style="color:#333">A ${featured ? "featured " : ""}property request is waiting for review.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Property</td><td style="padding:10px 14px;color:#333">${escapeHtml(propertyTitle)}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">City</td><td style="padding:10px 14px;color:#333">${escapeHtml(city || "Not provided")}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Submitted By</td><td style="padding:10px 14px;color:#333">${escapeHtml(submitterName)} (${escapeHtml(submitterRole)})</td></tr>
+        </table>
+        <a href="${process.env.CLIENT_URL}/dashboard/super-admin_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">Review Request</a>
       </div>`,
   });
-};
 
 module.exports = {
   sendVerificationEmail,
@@ -352,5 +310,5 @@ module.exports = {
   sendInquiryReplyToAgent,
   sendInquiryReplyToBuyer,
   sendAgentDirectMessage,
-  sendContactFormEmail,
+  sendPropertyApprovalRequestEmail,
 };

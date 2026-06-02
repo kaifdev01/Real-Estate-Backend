@@ -1,9 +1,10 @@
 const Tenant = require("../models/Tenant");
 const User = require("../models/User");
 const Property = require("../models/Property");
+const SubscriptionPlan = require("../models/SubscriptionPlan");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
-const { getPlan, getPlanList } = require("../utils/subscriptionPlans");
+const { getPlan, getPlanList, planToPayload } = require("../utils/subscriptionPlans");
 
 const formatTenant = async (tenant) => {
   const [agents, listings] = await Promise.all([
@@ -22,6 +23,7 @@ const formatTenant = async (tenant) => {
     listings,
     maxAgents: tenant.settings?.maxAgents,
     maxListings: tenant.settings?.maxListings,
+    maxFeaturedListings: tenant.settings?.maxFeaturedListings,
     joined: tenant.createdAt,
   };
 };
@@ -39,7 +41,35 @@ const formatAgent = async (agent) => ({
   joined: agent.createdAt,
 });
 
-const relativeTimestamp = (doc) => doc.updatedAt || doc.createdAt || new Date();
+const formatAgentSubscription = async (agent) => {
+  const listings = await Property.countDocuments({ agentId: agent._id, status: { $nin: ["archived", "closed"] } });
+  const tenantPlan = agent.tenantId?.subscription?.plan;
+  const plan = agent.subscription?.plan || tenantPlan || "free";
+  const planConfig = await getPlan(plan, agent.tenantId ? "agency" : "agent");
+
+  return {
+    id: agent._id,
+    firstName: agent.firstName,
+    lastName: agent.lastName,
+    email: agent.email,
+    phone: agent.phone || "",
+    tenant: agent.tenantId?.name || null,
+    status: agent.status,
+    plan,
+    subscription: {
+      plan,
+      status: agent.subscription?.status || "active",
+      startDate: agent.subscription?.startDate,
+      endDate: agent.subscription?.endDate,
+    },
+    settings: {
+      maxListings: agent.settings?.maxListings ?? planConfig.maxListings,
+      maxFeaturedListings: agent.settings?.maxFeaturedListings ?? planConfig.maxFeaturedListings,
+    },
+    listings,
+    joined: agent.createdAt,
+  };
+};
 
 exports.getOverview = asyncHandler(async (req, res) => {
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -134,6 +164,39 @@ exports.updateAgentSubscription = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Agent subscription updated.", data: { agent: agent.toPublicJSON() } });
 });
 
+exports.getAgents = asyncHandler(async (req, res) => {
+  const agents = await User.find({ role: "agent" })
+    .sort({ createdAt: -1 })
+    .populate("tenantId", "name subscription")
+    .lean();
+
+  const data = await Promise.all(agents.map(formatAgentSubscription));
+  res.json({ success: true, data: { agents: data } });
+});
+
+exports.updateAgentSubscription = asyncHandler(async (req, res) => {
+  const { plan } = req.body;
+  if (!plan) throw new AppError("Plan is required.", 400);
+
+  const planConfig = await getPlan(plan, "agent");
+  const agent = await User.findOneAndUpdate(
+    { _id: req.params.id, role: "agent" },
+    {
+      subscription: { plan, status: "active", startDate: new Date() },
+      settings: { maxListings: planConfig.maxListings, maxFeaturedListings: planConfig.maxFeaturedListings },
+    },
+    { new: true, runValidators: true }
+  ).populate("tenantId", "name subscription");
+
+  if (!agent) throw new AppError("Agent not found.", 404);
+
+  res.json({
+    success: true,
+    message: "Agent subscription updated.",
+    data: { agent: await formatAgentSubscription(agent) },
+  });
+});
+
 exports.updateTenant = asyncHandler(async (req, res) => {
   const allowed = ["name", "email", "phone", "status"];
   const updates = {};
@@ -142,9 +205,13 @@ exports.updateTenant = asyncHandler(async (req, res) => {
   });
 
   if (req.body.plan !== undefined) {
-    const plan = getPlan(req.body.plan);
+    const plan = await getPlan(req.body.plan, "agency");
     updates.subscription = { plan: req.body.plan, startDate: new Date() };
-    updates.settings = { maxAgents: plan.maxAgents, maxListings: plan.maxListings };
+    updates.settings = {
+      maxAgents: plan.maxAgents,
+      maxListings: plan.maxListings,
+      maxFeaturedListings: plan.maxFeaturedListings,
+    };
   }
 
   const tenant = await Tenant.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true });
@@ -159,7 +226,7 @@ exports.createTenant = asyncHandler(async (req, res) => {
 
   const slugBase = name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
   const slug = await Tenant.exists({ slug: slugBase }) ? `${slugBase}-${Date.now()}` : slugBase;
-  const planConfig = getPlan(plan);
+  const planConfig = await getPlan(plan, "agency");
 
   const tenant = await Tenant.create({
     name,
@@ -168,7 +235,11 @@ exports.createTenant = asyncHandler(async (req, res) => {
     phone,
     status: "trial",
     subscription: { plan, startDate: new Date() },
-    settings: { maxAgents: planConfig.maxAgents, maxListings: planConfig.maxListings },
+    settings: {
+      maxAgents: planConfig.maxAgents,
+      maxListings: planConfig.maxListings,
+      maxFeaturedListings: planConfig.maxFeaturedListings,
+    },
   });
 
   res.status(201).json({ success: true, message: "Tenant created.", data: { tenant: await formatTenant(tenant) } });
@@ -183,13 +254,70 @@ exports.deleteTenant = asyncHandler(async (req, res) => {
 const SubscriptionPlan = require("../models/SubscriptionPlan");
 
 exports.getPlans = asyncHandler(async (req, res) => {
-  // Try DB-driven plans first; fallback to static plans
-  const plans = await SubscriptionPlan.find({}).sort({ priceMonthly: 1 }).lean();
-  if (plans && plans.length) {
-    return res.json({ success: true, data: { plans } });
-  }
+  const plans = await getPlanList(req.query.scope);
+  res.json({ success: true, data: { plans } });
+});
 
-  res.json({ success: true, data: { plans: getPlanList() } });
+const planBody = (body) => {
+  const slug = (body.slug || body.name || "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return {
+    scope: body.scope,
+    slug,
+    name: body.name,
+    description: body.description || "",
+    price: Number(body.price || 0),
+    billing: body.billing || "monthly",
+    limits: {
+      maxAgents: Number(body.maxAgents ?? body.limits?.maxAgents ?? 0),
+      maxListings: Number(body.maxListings ?? body.limits?.maxListings ?? 0),
+      maxFeaturedListings: Number(body.maxFeaturedListings ?? body.limits?.maxFeaturedListings ?? 0),
+      maxInquiries: Number(body.maxInquiries ?? body.limits?.maxInquiries ?? 0),
+      storageMb: Number(body.storageMb ?? body.limits?.storageMb ?? 0),
+    },
+    features: Array.isArray(body.features)
+      ? body.features
+      : String(body.features || "").split("\n").map((item) => item.trim()).filter(Boolean),
+    flags: {
+      analytics: Boolean(body.flags?.analytics ?? body.analytics),
+      leadManagement: Boolean(body.flags?.leadManagement ?? body.leadManagement),
+      aiFeatures: Boolean(body.flags?.aiFeatures ?? body.aiFeatures),
+      branchManagement: Boolean(body.flags?.branchManagement ?? body.branchManagement),
+      featuredListings: Boolean(body.flags?.featuredListings ?? body.featuredListings),
+    },
+    popular: Boolean(body.popular),
+    active: body.active !== undefined ? Boolean(body.active) : true,
+  };
+};
+
+exports.createPlan = asyncHandler(async (req, res) => {
+  const payload = planBody(req.body);
+  if (!["agent", "agency"].includes(payload.scope)) throw new AppError("scope must be agent or agency.", 400);
+  if (!payload.slug || !payload.name) throw new AppError("Plan name and slug are required.", 400);
+
+  const plan = await SubscriptionPlan.create(payload);
+  res.status(201).json({ success: true, message: "Plan created.", data: { plan: planToPayload(plan) } });
+});
+
+exports.updatePlan = asyncHandler(async (req, res) => {
+  const payload = planBody(req.body);
+  delete payload.scope;
+  if (!payload.slug || !payload.name) throw new AppError("Plan name and slug are required.", 400);
+
+  const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, payload, { new: true, runValidators: true });
+  if (!plan) throw new AppError("Plan not found.", 404);
+  res.json({ success: true, message: "Plan updated.", data: { plan: planToPayload(plan) } });
+});
+
+exports.updatePlanStatus = asyncHandler(async (req, res) => {
+  const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, { active: Boolean(req.body.active) }, { new: true });
+  if (!plan) throw new AppError("Plan not found.", 404);
+  res.json({ success: true, message: "Plan status updated.", data: { plan: planToPayload(plan) } });
+});
+
+exports.deletePlan = asyncHandler(async (req, res) => {
+  const plan = await SubscriptionPlan.findByIdAndUpdate(req.params.id, { deletedAt: new Date(), active: false }, { new: true });
+  if (!plan) throw new AppError("Plan not found.", 404);
+  res.json({ success: true, message: "Plan deleted." });
 });
 
 exports.createPlan = asyncHandler(async (req, res) => {

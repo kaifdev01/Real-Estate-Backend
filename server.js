@@ -12,10 +12,10 @@ const agentRoutes = require("./src/routes/agentRoutes");
 const uploadRoutes = require("./src/routes/uploadRoutes");
 const inquiryRoutes = require("./src/routes/inquiryRoutes");
 const appointmentRoutes = require("./src/routes/appointmentRoutes");
-const contactRoutes = require("./src/routes/contactRoutes");
-const adminRoutes = require("./src/routes/adminRoutes");
-const errorHandler = require("./src/middleware/errorHandler");
-const AppError = require("./src/utils/AppError");
+const adminRoutes       = require("./src/routes/adminRoutes");
+const errorHandler      = require("./src/middleware/errorHandler");
+const AppError     = require("./src/utils/AppError");
+const { seedDefaultPlans } = require("./src/utils/subscriptionPlans");
 
 const app = express();
 
@@ -92,15 +92,10 @@ const PORT = process.env.PORT || 8080;
 
 mongoose
   .connect(process.env.MONGO_URL)
-  .then(() => {
+  .then(async () => {
     console.log("Connected to MongoDB");
-    try {
-      // Seed default subscription plans if not present
-      const { seedDefaultPlans } = require("./src/services/subscriptionService");
-      seedDefaultPlans().catch((e) => console.warn("Plan seed warning:", e.message));
-    } catch (e) {
-      console.warn("Could not run plan seeder:", e.message);
-    }
+    await seedDefaultPlans();
+    console.log("Subscription plans synced");
     app.listen(PORT, () =>
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV}]`)
     );

@@ -1,29 +1,49 @@
 const mongoose = require("mongoose");
 
 const subscriptionPlanSchema = new mongoose.Schema(
-    {
-        name: { type: String, required: true, trim: true },
-        slug: { type: String, required: true, unique: true, lowercase: true, trim: true },
-        description: { type: String, default: "" },
-        billing: { type: String, enum: ["monthly", "yearly", "one-time"], default: "monthly" },
-        priceMonthly: { type: Number, default: 0 },
-        priceYearly: { type: Number, default: 0 },
-        features: { type: [String], default: [] },
-        limits: {
-            maxListings: { type: Number, default: 0 },
-            maxAgents: { type: Number, default: 0 },
-            featuredListings: { type: Number, default: 0 },
-            teamMembers: { type: Number, default: 0 },
-        },
-        metadata: { type: mongoose.Schema.Types.Mixed },
-        active: { type: Boolean, default: true },
-        tenantScoped: { type: Boolean, default: false }, // plan created for a specific tenant/agency
-        tenantId: { type: mongoose.Schema.Types.ObjectId, ref: "Tenant", default: null },
-        createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  {
+    scope: {
+      type: String,
+      enum: ["agent", "agency"],
+      required: true,
+      index: true,
     },
-    { timestamps: true }
+    slug: {
+      type: String,
+      required: true,
+      lowercase: true,
+      trim: true,
+    },
+    name: { type: String, required: true, trim: true },
+    description: { type: String, trim: true, default: "" },
+    price: { type: Number, default: 0, min: 0 },
+    billing: {
+      type: String,
+      enum: ["monthly", "yearly"],
+      default: "monthly",
+    },
+    limits: {
+      maxAgents: { type: Number, default: 0 },
+      maxListings: { type: Number, default: 0 },
+      maxFeaturedListings: { type: Number, default: 0 },
+      maxInquiries: { type: Number, default: 0 },
+      storageMb: { type: Number, default: 0 },
+    },
+    features: [{ type: String, trim: true }],
+    flags: {
+      analytics: { type: Boolean, default: false },
+      leadManagement: { type: Boolean, default: false },
+      aiFeatures: { type: Boolean, default: false },
+      branchManagement: { type: Boolean, default: false },
+      featuredListings: { type: Boolean, default: false },
+    },
+    popular: { type: Boolean, default: false },
+    active: { type: Boolean, default: true },
+    deletedAt: { type: Date },
+  },
+  { timestamps: true }
 );
 
-subscriptionPlanSchema.index({ slug: 1 });
+subscriptionPlanSchema.index({ scope: 1, slug: 1 }, { unique: true });
 
 module.exports = mongoose.model("SubscriptionPlan", subscriptionPlanSchema);
