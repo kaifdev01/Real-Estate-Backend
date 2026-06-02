@@ -5,6 +5,7 @@ const RefreshToken = require("../models/RefreshToken");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
 const { getPlan } = require("../utils/subscriptionPlans");
+const { assignPlanToUser, assignPlanToTenant, findPlan } = require("../services/subscriptionService");
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -69,10 +70,13 @@ exports.registerBuyer = asyncHandler(async (req, res) => {
 // ─── Register Agent (independent agent without agency) ──────────────────────
 
 exports.registerAgent = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, phone, password } = req.body;
+  const { firstName, lastName, email, phone, password, plan = "free" } = req.body;
 
   const exists = await User.findOne({ email });
   if (exists) throw new AppError("Email already registered.", 409);
+
+  const planConfig = await findPlan(plan);
+  if (!planConfig) throw new AppError("Selected subscription plan is invalid.", 400);
 
   const verificationCode = generateOTP();
   const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
@@ -94,12 +98,18 @@ exports.registerAgent = asyncHandler(async (req, res) => {
     verificationCodeExpires,
   });
 
+  await assignPlanToUser(user._id.toString(), planConfig.slug || planConfig.id, {
+    status: planConfig.priceMonthly > 0 ? "pending" : "active",
+    billingInterval: planConfig.billing || "monthly",
+    paymentProvider: "stripe",
+  });
+
   await sendVerificationEmail(email, verificationCode);
 
   res.status(201).json({
     success: true,
     message: "Agent account created. Check your email for the verification code.",
-    data: { email: user.email, role: user.role },
+    data: { email: user.email, role: user.role, plan: planConfig.slug || planConfig.id, userId: user._id },
   });
 });
 
@@ -109,6 +119,7 @@ exports.registerAgency = asyncHandler(async (req, res) => {
   const {
     agencyName, agencyEmail, agencyPhone,
     adminFirstName, adminLastName, adminEmail, adminPhone, password,
+    plan = "free",
   } = req.body;
 
   // Check both emails
@@ -116,8 +127,11 @@ exports.registerAgency = asyncHandler(async (req, res) => {
     User.findOne({ email: adminEmail }),
     Tenant.findOne({ email: agencyEmail }),
   ]);
-  if (emailExists)  throw new AppError("Admin email already registered.", 409);
+  if (emailExists) throw new AppError("Admin email already registered.", 409);
   if (agencyExists) throw new AppError("Agency email already registered.", 409);
+
+  const planConfig = await findPlan(plan);
+  if (!planConfig) throw new AppError("Selected subscription plan is invalid.", 400);
 
   // Create slug from agency name
   const slug = agencyName.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
@@ -144,7 +158,7 @@ exports.registerAgency = asyncHandler(async (req, res) => {
   const verificationCode = generateOTP();
   const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
 
-  await User.create({
+  const adminUser = await User.create({
     firstName: adminFirstName,
     lastName: adminLastName,
     email: adminEmail,
@@ -156,12 +170,24 @@ exports.registerAgency = asyncHandler(async (req, res) => {
     verificationCodeExpires,
   });
 
+  await assignPlanToTenant(tenant._id.toString(), planConfig.slug || planConfig.id, {
+    status: planConfig.priceMonthly > 0 ? "pending" : "active",
+    billingInterval: planConfig.billing || "monthly",
+    paymentProvider: "stripe",
+  });
+
   await sendVerificationEmail(adminEmail, verificationCode);
 
   res.status(201).json({
     success: true,
     message: "Agency registered. Check your email for the verification code.",
-    data: { email: adminEmail, agencyName: tenant.name, tenantId: tenant._id },
+    data: {
+      email: adminEmail,
+      agencyName: tenant.name,
+      tenantId: tenant._id,
+      adminUserId: adminUser._id,
+      plan: planConfig.slug || planConfig.id,
+    },
   });
 });
 
@@ -264,14 +290,14 @@ exports.login = asyncHandler(async (req, res) => {
     throw new AppError("Please verify your email before logging in.", 401);
   }
   if (user.status === "suspended") throw new AppError("Account suspended.", 403);
-  if (user.status === "inactive")  throw new AppError("Account inactive.", 403);
+  if (user.status === "inactive") throw new AppError("Account inactive.", 403);
 
   const isMatch = await user.comparePassword(password);
   if (!isMatch) throw new AppError("Invalid credentials.", 401);
 
   // Generate tokens
   const tokenPayload = { id: user._id, role: user.role, tenantId: user.tenantId };
-  const accessToken  = generateAccessToken(tokenPayload);
+  const accessToken = generateAccessToken(tokenPayload);
   const refreshToken = generateRefreshToken({ id: user._id });
 
   const deviceInfo = getDeviceInfo(req);
@@ -283,7 +309,7 @@ exports.login = asyncHandler(async (req, res) => {
   });
 
   // Update last login
-  user.lastLogin   = new Date();
+  user.lastLogin = new Date();
   user.lastLoginIp = deviceInfo.ip;
   await user.save({ validateBeforeSave: false });
 
