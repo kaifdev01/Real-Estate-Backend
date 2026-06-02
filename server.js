@@ -15,6 +15,7 @@ const appointmentRoutes = require("./src/routes/appointmentRoutes");
 const adminRoutes       = require("./src/routes/adminRoutes");
 const errorHandler      = require("./src/middleware/errorHandler");
 const AppError     = require("./src/utils/AppError");
+const { seedDefaultPlans } = require("./src/utils/subscriptionPlans");
 
 const app = express();
 
@@ -80,8 +81,10 @@ const PORT = process.env.PORT || 8080;
 
 mongoose
   .connect(process.env.MONGO_URL)
-  .then(() => {
+  .then(async () => {
     console.log("Connected to MongoDB");
+    await seedDefaultPlans();
+    console.log("Subscription plans synced");
     app.listen(PORT, () =>
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV}]`)
     );

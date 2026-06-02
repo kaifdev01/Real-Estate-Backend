@@ -30,6 +30,7 @@ const createPropertySchema = z.object({
   floors: z.number().min(1).optional(),
   yearBuilt: z.number().min(1900).max(new Date().getFullYear()).optional(),
   amenities: z.array(z.string().trim()).default([]),
+  featured: z.boolean().optional(),
   images: z.array(z.object({
     url: z.string().url("Invalid image URL"),
     publicId: z.string().optional(),
@@ -50,6 +51,15 @@ const approvePropertySchema = z.object({
 const dealPropertySchema = z.object({
   action: z.enum(["sold", "rented", "closed", "available"], { errorMap: () => ({ message: "action must be sold, rented, closed or available" }) }),
 });
+
+const featuredReviewSchema = z.object({
+  action: z.enum(["approve", "reject"], { errorMap: () => ({ message: "action must be approve or reject" }) }),
+  rejectionReason: z.string().trim().optional(),
+  notes: z.string().trim().optional(),
+}).refine(
+  (d) => d.action === "approve" || (d.action === "reject" && d.rejectionReason),
+  { message: "rejectionReason is required when rejecting", path: ["rejectionReason"] }
+);
 
 const propertyQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
@@ -91,6 +101,7 @@ module.exports = {
   updatePropertySchema,
   approvePropertySchema,
   dealPropertySchema,
+  featuredReviewSchema,
   propertyQuerySchema,
   mapSearchQuerySchema,
 };

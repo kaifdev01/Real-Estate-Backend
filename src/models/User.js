@@ -47,6 +47,17 @@ const userSchema = new mongoose.Schema(
     responseTime: { type: String, default: "< 24 hours" },
     avatar:       { type: String, default: "" },
 
+    subscription: {
+      plan: { type: String, default: "free" },
+      startDate: { type: Date },
+      endDate: { type: Date },
+      status: { type: String, enum: ["active", "expired", "cancelled", "pending", "trialing", "suspended"], default: "active" },
+    },
+    settings: {
+      maxListings: { type: Number, default: 3 },
+      maxFeaturedListings: { type: Number, default: 0 },
+    },
+
     // Session tracking
     lastLogin: { type: Date },
     lastLoginIp: { type: String },

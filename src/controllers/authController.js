@@ -44,6 +44,7 @@ exports.registerBuyer = asyncHandler(async (req, res) => {
 
   const verificationCode = generateOTP();
   const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
+  const freePlan = await getPlan("free", "agent");
 
   const user = await User.create({
     firstName,
@@ -84,6 +85,11 @@ exports.registerAgent = asyncHandler(async (req, res) => {
     password,
     role: "agent",
     tenantId: null,
+    subscription: { plan: "free", startDate: new Date(), status: "active" },
+    settings: {
+      maxListings: freePlan.maxListings,
+      maxFeaturedListings: freePlan.maxFeaturedListings,
+    },
     verificationCode,
     verificationCodeExpires,
   });
@@ -119,7 +125,7 @@ exports.registerAgency = asyncHandler(async (req, res) => {
   const finalSlug = slugExists ? `${slug}-${Date.now()}` : slug;
 
   // Create tenant
-  const freePlan = getPlan("free");
+  const freePlan = await getPlan("free", "agency");
   const tenant = await Tenant.create({
     name: agencyName,
     slug: finalSlug,
@@ -127,7 +133,11 @@ exports.registerAgency = asyncHandler(async (req, res) => {
     phone: agencyPhone,
     status: "trial",
     subscription: { plan: "free", startDate: new Date() },
-    settings: { maxAgents: freePlan.maxAgents, maxListings: freePlan.maxListings },
+    settings: {
+      maxAgents: freePlan.maxAgents,
+      maxListings: freePlan.maxListings,
+      maxFeaturedListings: freePlan.maxFeaturedListings,
+    },
   });
 
   // Create agency_admin user linked to tenant

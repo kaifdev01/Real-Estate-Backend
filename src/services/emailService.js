@@ -277,6 +277,26 @@ const sendAgentDirectMessage = (agentEmail, { agentName, senderName, senderEmail
       </div>`,
   });
 
+const sendPropertyApprovalRequestEmail = (adminEmail, { propertyTitle, city, submitterName, submitterRole, featured }) =>
+  sendMail({
+    to: adminEmail,
+    subject: `${featured ? "Featured " : ""}Property Approval Request — ${propertyTitle}`,
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:auto;padding:32px;border:1px solid #eee;border-radius:12px">
+        <div style="background:#1A3C5E;padding:20px 24px;border-radius:8px;margin-bottom:24px">
+          <h2 style="color:#C9A84C;margin:0;font-size:20px">Property Approval Required</h2>
+          <p style="color:#fff;margin:6px 0 0;font-size:13px">LuxEstate Admin Notification</p>
+        </div>
+        <p style="color:#333">A ${featured ? "featured " : ""}property request is waiting for review.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px">
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E;width:40%">Property</td><td style="padding:10px 14px;color:#333">${escapeHtml(propertyTitle)}</td></tr>
+          <tr><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">City</td><td style="padding:10px 14px;color:#333">${escapeHtml(city || "Not provided")}</td></tr>
+          <tr style="background:#F5F2ED"><td style="padding:10px 14px;font-weight:600;color:#1A3C5E">Submitted By</td><td style="padding:10px 14px;color:#333">${escapeHtml(submitterName)} (${escapeHtml(submitterRole)})</td></tr>
+        </table>
+        <a href="${process.env.CLIENT_URL}/dashboard/super-admin_dashboard" style="display:inline-block;padding:12px 24px;background:#C9A84C;color:#fff;border-radius:8px;text-decoration:none;font-weight:bold;font-size:14px">Review Request</a>
+      </div>`,
+  });
+
 module.exports = {
   sendVerificationEmail,
   sendWelcomeEmail,
@@ -290,4 +310,5 @@ module.exports = {
   sendInquiryReplyToAgent,
   sendInquiryReplyToBuyer,
   sendAgentDirectMessage,
+  sendPropertyApprovalRequestEmail,
 };

@@ -13,7 +13,7 @@ const tenantSchema = new mongoose.Schema(
       default: "trial",
     },
     subscription: {
-      plan: { type: String, enum: ["free", "basic", "pro", "enterprise"], default: "free" },
+      plan: { type: String, default: "free" },
       startDate: { type: Date },
       endDate: { type: Date },
       stripeCustomerId: { type: String },
@@ -22,6 +22,7 @@ const tenantSchema = new mongoose.Schema(
     settings: {
       maxAgents: { type: Number, default: 1 },
       maxListings: { type: Number, default: 3 },
+      maxFeaturedListings: { type: Number, default: 0 },
     },
   },
   { timestamps: true }

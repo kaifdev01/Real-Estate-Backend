@@ -84,11 +84,26 @@ const propertySchema = new mongoose.Schema(
     // ── Lifecycle ──────────────────────────────────────────────────────────────
     status: {
       type: String,
-      enum: ["draft", "submitted", "approved", "rejected", "archived", "sold", "rented", "closed"],
+      enum: ["draft", "submitted", "pending_featured_approval", "approved", "rejected", "archived", "sold", "rented", "closed"],
       default: "draft",
     },
     rejectionReason: { type: String },
     featuredUntil: { type: Date },          // paid featured boost expiry
+    featuredRequested: { type: Boolean, default: false },
+    featuredApprovalStatus: {
+      type: String,
+      enum: ["none", "pending", "approved", "rejected"],
+      default: "none",
+    },
+    featuredRejectionReason: { type: String },
+    featuredReviewNotes: { type: String },
+    featuredPreviousStatus: { type: String },
+    featuredRequestedAt: { type: Date },
+    featuredReviewedAt: { type: Date },
+    featuredReviewedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     archivedAt: { type: Date },
     dealClosedAt: { type: Date },
 
@@ -145,6 +160,7 @@ propertySchema.methods.isExpired = function () {
 // slug unique:true already creates an index, no need to add it again
 propertySchema.index({ tenantId: 1, status: 1 });
 propertySchema.index({ agentId: 1, status: 1 });
+propertySchema.index({ featuredApprovalStatus: 1, featuredRequestedAt: -1 });
 propertySchema.index({ city: 1, status: 1 });
 propertySchema.index({ area: 1, status: 1 });
 propertySchema.index({ price: 1 });
