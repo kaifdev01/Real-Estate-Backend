@@ -4,7 +4,7 @@ const User = require("../models/User");
 const Tenant = require("../models/Tenant");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
-const { propertyQuerySchema } = require("../validators/propertyValidators");
+const { propertyQuerySchema, mapSearchQuerySchema } = require("../validators/propertyValidators");
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -20,6 +20,100 @@ const buildSortQuery = (sort) => {
 const getTenantAgentIds = async (tenantId) => {
   const agents = await User.find({ tenantId, role: "agent" }).select("_id").lean();
   return agents.map((agent) => agent._id);
+};
+
+const mapSearchCache = new Map();
+const MAP_CACHE_TTL_MS = 20 * 1000;
+const MAP_CACHE_MAX_KEYS = 250;
+
+const getCacheKey = (query) => JSON.stringify(Object.keys(query).sort().reduce((acc, key) => {
+  acc[key] = query[key];
+  return acc;
+}, {}));
+
+const getCachedMapSearch = (key) => {
+  const cached = mapSearchCache.get(key);
+  if (!cached || cached.expiresAt < Date.now()) {
+    mapSearchCache.delete(key);
+    return null;
+  }
+  return cached.payload;
+};
+
+const setCachedMapSearch = (key, payload) => {
+  if (mapSearchCache.size >= MAP_CACHE_MAX_KEYS) {
+    mapSearchCache.delete(mapSearchCache.keys().next().value);
+  }
+  mapSearchCache.set(key, { payload, expiresAt: Date.now() + MAP_CACHE_TTL_MS });
+};
+
+const parseBounds = ({ west, south, east, north }) => {
+  if (south >= north) throw new AppError("Invalid map bounds.", 400);
+  if (west <= east) {
+    return {
+      $geoWithin: {
+        $geometry: {
+          type: "Polygon",
+          coordinates: [[
+            [west, south],
+            [east, south],
+            [east, north],
+            [west, north],
+            [west, south],
+          ]],
+        },
+      },
+    };
+  }
+  return {
+    $geoWithin: {
+      $geometry: {
+        type: "MultiPolygon",
+        coordinates: [
+          [[[west, south], [180, south], [180, north], [west, north], [west, south]]],
+          [[[-180, south], [east, south], [east, north], [-180, north], [-180, south]]],
+        ],
+      },
+    },
+  };
+};
+
+const buildMapFilter = (query) => {
+  const filter = {
+    status: "approved",
+    $or: [
+      { "location.coordinates": parseBounds(query) },
+      {
+        "coordinates.lng": { $gte: query.west <= query.east ? query.west : -180, $lte: query.east },
+        "coordinates.lat": { $gte: query.south, $lte: query.north },
+      },
+      ...(query.west > query.east ? [{
+        "coordinates.lng": { $gte: query.west, $lte: 180 },
+        "coordinates.lat": { $gte: query.south, $lte: query.north },
+      }] : []),
+    ],
+  };
+
+  const category = query.category || query.propertyType;
+  const area = query.phase || query.area;
+
+  if (query.city) filter.city = { $regex: query.city, $options: "i" };
+  if (area) filter.area = { $regex: area, $options: "i" };
+  if (category) filter.category = category;
+  if (query.listingType) filter.listingType = query.listingType;
+  if (query.beds !== undefined) filter.beds = { $gte: query.beds };
+  if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+    filter.price = {};
+    if (query.minPrice !== undefined) filter.price.$gte = query.minPrice;
+    if (query.maxPrice !== undefined) filter.price.$lte = query.maxPrice;
+  }
+  if (query.minSize !== undefined || query.maxSize !== undefined) {
+    filter.size = {};
+    if (query.minSize !== undefined) filter.size.$gte = query.minSize;
+    if (query.maxSize !== undefined) filter.size.$lte = query.maxSize;
+  }
+
+  return filter;
 };
 
 // ─── GET /api/properties — Public listing with filters + pagination ────────────
@@ -71,6 +165,79 @@ exports.getProperties = asyncHandler(async (req, res) => {
     data: { properties },
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   });
+});
+
+// GET /api/properties/map-search — visible-bounds property search for map UI
+exports.getMapSearchProperties = asyncHandler(async (req, res) => {
+  const parsed = mapSearchQuerySchema.safeParse(req.query);
+  if (!parsed.success) {
+    const msg = (parsed.error.issues || parsed.error.errors || []).map((e) => e.message).join(", ");
+    throw new AppError(msg || "Invalid map search query.", 400);
+  }
+
+  const query = parsed.data;
+  const cacheKey = getCacheKey(query);
+  const cached = getCachedMapSearch(cacheKey);
+  if (cached) {
+    res.set("X-Cache", "HIT");
+    return res.json(cached);
+  }
+
+  const skip = (query.page - 1) * query.limit;
+  const filter = buildMapFilter(query);
+
+  const [result] = await Property.aggregate([
+    { $match: filter },
+    { $sort: { featuredUntil: -1, createdAt: -1 } },
+    {
+      $facet: {
+        properties: [
+          { $skip: skip },
+          { $limit: query.limit },
+          {
+            $project: {
+              _id: 1,
+              slug: 1,
+              title: 1,
+              listingType: 1,
+              category: 1,
+              price: 1,
+              currency: 1,
+              address: 1,
+              city: 1,
+              area: 1,
+              size: 1,
+              beds: 1,
+              baths: 1,
+              images: { $slice: ["$images", 1] },
+              location: 1,
+              coordinates: 1,
+              featuredUntil: 1,
+              createdAt: 1,
+            },
+          },
+        ],
+        meta: [{ $count: "total" }],
+      },
+    },
+  ]).allowDiskUse(true);
+
+  const total = result?.meta?.[0]?.total || 0;
+  const payload = {
+    success: true,
+    data: { properties: result?.properties || [] },
+    pagination: {
+      page: query.page,
+      limit: query.limit,
+      total,
+      pages: Math.ceil(total / query.limit),
+    },
+  };
+
+  setCachedMapSearch(cacheKey, payload);
+  res.set("Cache-Control", "public, max-age=20, stale-while-revalidate=60");
+  res.set("X-Cache", "MISS");
+  res.json(payload);
 });
 
 // ─── GET /api/properties/:slug — Public single property ───────────────────────
