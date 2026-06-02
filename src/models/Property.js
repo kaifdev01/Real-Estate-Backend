@@ -43,6 +43,23 @@ const propertySchema = new mongoose.Schema(
       lat: { type: Number },
       lng: { type: Number },
     },
+    location: {
+      type: {
+        type: String,
+        enum: ["Point"],
+        default: "Point",
+      },
+      coordinates: {
+        type: [Number], // [lng, lat]
+        validate: {
+          validator(value) {
+            return !value.length || (value.length === 2 && value.every(Number.isFinite));
+          },
+          message: "Location coordinates must be [lng, lat].",
+        },
+        default: undefined,
+      },
+    },
 
     // ── Specs ──────────────────────────────────────────────────────────────────
     size: { type: Number },           // sq ft
@@ -84,6 +101,18 @@ const propertySchema = new mongoose.Schema(
 
 // ── Slug generation ────────────────────────────────────────────────────────────
 propertySchema.pre("validate", async function (next) {
+  if (this.coordinates?.lat !== undefined && this.coordinates?.lng !== undefined) {
+    this.location = {
+      type: "Point",
+      coordinates: [Number(this.coordinates.lng), Number(this.coordinates.lat)],
+    };
+  } else if (this.location?.coordinates?.length === 2) {
+    this.coordinates = {
+      lng: this.location.coordinates[0],
+      lat: this.location.coordinates[1],
+    };
+  }
+
   if (this.isNew || this.isModified("title")) {
     const base = this.title
       .toLowerCase()
@@ -117,8 +146,12 @@ propertySchema.methods.isExpired = function () {
 propertySchema.index({ tenantId: 1, status: 1 });
 propertySchema.index({ agentId: 1, status: 1 });
 propertySchema.index({ city: 1, status: 1 });
+propertySchema.index({ area: 1, status: 1 });
 propertySchema.index({ price: 1 });
 propertySchema.index({ listingType: 1, category: 1, status: 1 });
+propertySchema.index({ status: 1, city: 1, area: 1, price: 1, category: 1, beds: 1, size: 1 });
+propertySchema.index({ location: "2dsphere" }, { partialFilterExpression: { "location.coordinates": { $exists: true } } });
+propertySchema.index({ "coordinates.lng": 1, "coordinates.lat": 1, status: 1 });
 propertySchema.index({ createdAt: -1 });
 
 module.exports = mongoose.model("Property", propertySchema);

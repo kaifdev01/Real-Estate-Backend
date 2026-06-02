@@ -28,6 +28,25 @@ const formatTenant = async (tenant) => {
 
 const relativeTimestamp = (doc) => doc.updatedAt || doc.createdAt || new Date();
 
+const formatUser = (user) => ({
+  id: user._id,
+  name: `${user.firstName} ${user.lastName}`.trim(),
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  phone: user.phone || "",
+  role: user.role,
+  status: user.status,
+  isVerified: user.isVerified,
+  tenant: user.tenantId ? {
+    id: user.tenantId._id,
+    name: user.tenantId.name,
+  } : null,
+  city: user.city || "",
+  joined: user.createdAt,
+  lastLogin: user.lastLogin,
+});
+
 exports.getOverview = asyncHandler(async (req, res) => {
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
@@ -81,6 +100,44 @@ exports.getTenants = asyncHandler(async (req, res) => {
   const tenants = await Tenant.find().sort({ createdAt: -1 });
   const data = await Promise.all(tenants.map(formatTenant));
   res.json({ success: true, data: { tenants: data } });
+});
+
+exports.getUsers = asyncHandler(async (req, res) => {
+  const { search, role, status, page = 1, limit = 50 } = req.query;
+  const filter = {};
+
+  if (role && role !== "all") filter.role = role;
+  if (status && status !== "all") filter.status = status;
+  if (search) {
+    filter.$or = [
+      { firstName: { $regex: search, $options: "i" } },
+      { lastName: { $regex: search, $options: "i" } },
+      { email: { $regex: search, $options: "i" } },
+      { phone: { $regex: search, $options: "i" } },
+    ];
+  }
+
+  const skip = (Number(page) - 1) * Number(limit);
+  const [users, total] = await Promise.all([
+    User.find(filter)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(Number(limit))
+      .populate("tenantId", "name")
+      .lean(),
+    User.countDocuments(filter),
+  ]);
+
+  res.json({
+    success: true,
+    data: { users: users.map(formatUser) },
+    pagination: {
+      page: Number(page),
+      limit: Number(limit),
+      total,
+      pages: Math.ceil(total / Number(limit)),
+    },
+  });
 });
 
 exports.updateTenant = asyncHandler(async (req, res) => {

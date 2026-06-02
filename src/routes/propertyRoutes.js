@@ -14,6 +14,7 @@ const {
 
 // ─── Public ───────────────────────────────────────────────────────────────────
 router.get("/", controller.getProperties);
+router.get("/map-search", controller.getMapSearchProperties);
 
 // ─── Agent — own listings (static, must be before /:slug) ────────────────────
 router.get(

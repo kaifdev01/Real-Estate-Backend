@@ -8,6 +8,7 @@ router.use(protect, requireRole("super_admin"));
 
 router.get("/overview", controller.getOverview);
 router.get("/tenants", controller.getTenants);
+router.get("/users", controller.getUsers);
 router.post("/tenants", controller.createTenant);
 router.patch("/tenants/:id", controller.updateTenant);
 router.delete("/tenants/:id", controller.deleteTenant);

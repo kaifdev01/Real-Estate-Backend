@@ -16,6 +16,13 @@ const createPropertySchema = z.object({
     lat: z.number(),
     lng: z.number(),
   }).optional(),
+  location: z.object({
+    type: z.literal("Point").default("Point"),
+    coordinates: z.tuple([
+      z.number().min(-180).max(180),
+      z.number().min(-90).max(90),
+    ]),
+  }).optional(),
   size: z.number().min(1).optional(),
   beds: z.number().min(0).optional(),
   baths: z.number().min(0).optional(),
@@ -59,10 +66,31 @@ const propertyQuerySchema = z.object({
   featured: z.coerce.boolean().optional(),
 });
 
+const mapSearchQuerySchema = z.object({
+  page: z.coerce.number().min(1).default(1),
+  limit: z.coerce.number().min(1).max(500).default(250),
+  north: z.coerce.number().min(-90).max(90),
+  south: z.coerce.number().min(-90).max(90),
+  east: z.coerce.number().min(-180).max(180),
+  west: z.coerce.number().min(-180).max(180),
+  city: z.string().trim().optional(),
+  phase: z.string().trim().optional(),
+  area: z.string().trim().optional(),
+  category: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"]).optional(),
+  propertyType: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"]).optional(),
+  listingType: z.enum(["for_sale", "for_rent"]).optional(),
+  minPrice: z.coerce.number().min(0).optional(),
+  maxPrice: z.coerce.number().min(0).optional(),
+  beds: z.coerce.number().min(0).optional(),
+  minSize: z.coerce.number().min(0).optional(),
+  maxSize: z.coerce.number().min(0).optional(),
+});
+
 module.exports = {
   createPropertySchema,
   updatePropertySchema,
   approvePropertySchema,
   dealPropertySchema,
   propertyQuerySchema,
+  mapSearchQuerySchema,
 };
