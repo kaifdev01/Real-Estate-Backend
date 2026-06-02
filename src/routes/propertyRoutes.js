@@ -10,7 +10,6 @@ const {
   updatePropertySchema,
   approvePropertySchema,
   dealPropertySchema,
-  featuredReviewSchema,
 } = require("../validators/propertyValidators");
 
 // ─── Public ───────────────────────────────────────────────────────────────────
@@ -44,30 +43,16 @@ router.get(
   controller.getAllProperties
 );
 
-router.get(
-  "/admin/featured-approvals",
+router.delete(
+  "/admin/:id",
   protect, requireRole("super_admin"),
-  controller.getFeaturedApprovals
-);
-
-router.get(
-  "/admin/approvals",
-  protect, requireRole("super_admin"),
-  controller.getAdminPropertyApprovals
+  controller.adminDeleteProperty
 );
 
 router.patch(
-  "/admin/approvals/:id",
+  "/admin/:id/featured",
   protect, requireRole("super_admin"),
-  validate(approvePropertySchema),
-  controller.reviewAdminPropertyApproval
-);
-
-router.patch(
-  "/admin/featured-approvals/:id",
-  protect, requireRole("super_admin"),
-  validate(featuredReviewSchema),
-  controller.reviewFeaturedApproval
+  controller.adminToggleFeatured
 );
 
 // ─── Public single property (dynamic — must be last GET) ─────────────────────

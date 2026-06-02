@@ -4,8 +4,7 @@ const Tenant = require("../models/Tenant");
 const RefreshToken = require("../models/RefreshToken");
 const asyncHandler = require("../utils/asyncHandler");
 const AppError = require("../utils/AppError");
-const { getPlan } = require("../utils/subscriptionPlans");
-const { assignPlanToUser, assignPlanToTenant, findPlan } = require("../services/subscriptionService");
+const { getPlanList } = require("../utils/subscriptionPlans");
 const {
   generateAccessToken,
   generateRefreshToken,
@@ -35,6 +34,13 @@ const getDeviceInfo = (req) => ({
 const generateOTP = () =>
   Math.floor(100000 + Math.random() * 900000).toString();
 
+const resolveSignupPlan = async (slug = "free", scope = "agent") => {
+  const plans = await getPlanList(scope);
+  const plan = plans.find((item) => item.slug === slug && item.active);
+  if (!plan) throw new AppError("Selected subscription plan is not available.", 400);
+  return plan;
+};
+
 // ─── Register Buyer ───────────────────────────────────────────────────────────
 
 exports.registerBuyer = asyncHandler(async (req, res) => {
@@ -45,7 +51,6 @@ exports.registerBuyer = asyncHandler(async (req, res) => {
 
   const verificationCode = generateOTP();
   const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
-  const freePlan = await getPlan("free", "agent");
 
   const user = await User.create({
     firstName,
@@ -80,6 +85,7 @@ exports.registerAgent = asyncHandler(async (req, res) => {
 
   const verificationCode = generateOTP();
   const verificationCodeExpires = new Date(Date.now() + 15 * 60 * 1000);
+  const selectedPlan = await resolveSignupPlan(plan, "agent");
 
   const user = await User.create({
     firstName,
@@ -89,10 +95,10 @@ exports.registerAgent = asyncHandler(async (req, res) => {
     password,
     role: "agent",
     tenantId: null,
-    subscription: { plan: "free", startDate: new Date(), status: "active" },
+    subscription: { plan: selectedPlan.slug, startDate: new Date(), status: "active" },
     settings: {
-      maxListings: freePlan.maxListings,
-      maxFeaturedListings: freePlan.maxFeaturedListings,
+      maxListings: selectedPlan.maxListings,
+      maxFeaturedListings: selectedPlan.maxFeaturedListings,
     },
     verificationCode,
     verificationCodeExpires,
@@ -109,7 +115,7 @@ exports.registerAgent = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: "Agent account created. Check your email for the verification code.",
-    data: { email: user.email, role: user.role, plan: planConfig.slug || planConfig.id, userId: user._id },
+    data: { email: user.email, role: user.role, userId: user._id, plan: selectedPlan.slug },
   });
 });
 
@@ -118,8 +124,7 @@ exports.registerAgent = asyncHandler(async (req, res) => {
 exports.registerAgency = asyncHandler(async (req, res) => {
   const {
     agencyName, agencyEmail, agencyPhone,
-    adminFirstName, adminLastName, adminEmail, adminPhone, password,
-    plan = "free",
+    adminFirstName, adminLastName, adminEmail, adminPhone, password, plan = "free",
   } = req.body;
 
   // Check both emails
@@ -139,18 +144,18 @@ exports.registerAgency = asyncHandler(async (req, res) => {
   const finalSlug = slugExists ? `${slug}-${Date.now()}` : slug;
 
   // Create tenant
-  const freePlan = await getPlan("free", "agency");
+  const selectedPlan = await resolveSignupPlan(plan, "agency");
   const tenant = await Tenant.create({
     name: agencyName,
     slug: finalSlug,
     email: agencyEmail,
     phone: agencyPhone,
     status: "trial",
-    subscription: { plan: "free", startDate: new Date() },
+    subscription: { plan: selectedPlan.slug, startDate: new Date() },
     settings: {
-      maxAgents: freePlan.maxAgents,
-      maxListings: freePlan.maxListings,
-      maxFeaturedListings: freePlan.maxFeaturedListings,
+      maxAgents: selectedPlan.maxAgents,
+      maxListings: selectedPlan.maxListings,
+      maxFeaturedListings: selectedPlan.maxFeaturedListings,
     },
   });
 
@@ -181,13 +186,7 @@ exports.registerAgency = asyncHandler(async (req, res) => {
   res.status(201).json({
     success: true,
     message: "Agency registered. Check your email for the verification code.",
-    data: {
-      email: adminEmail,
-      agencyName: tenant.name,
-      tenantId: tenant._id,
-      adminUserId: adminUser._id,
-      plan: planConfig.slug || planConfig.id,
-    },
+    data: { email: adminEmail, agencyName: tenant.name, tenantId: tenant._id, adminUserId: adminUser._id, plan: selectedPlan.slug },
   });
 });
 

@@ -26,6 +26,8 @@ const createPropertySchema = z.object({
   size: z.number().min(1).optional(),
   beds: z.number().min(0).optional(),
   baths: z.number().min(0).optional(),
+  kitchens: z.number().min(0).optional(),
+  attachedBathrooms: z.number().min(0).optional(),
   parking: z.number().min(0).default(0),
   floors: z.number().min(1).optional(),
   yearBuilt: z.number().min(1900).max(new Date().getFullYear()).optional(),

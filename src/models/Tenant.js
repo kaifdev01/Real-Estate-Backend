@@ -16,8 +16,6 @@ const tenantSchema = new mongoose.Schema(
       plan: { type: String, default: "free" },
       startDate: { type: Date },
       endDate: { type: Date },
-      stripeCustomerId: { type: String },
-      stripeSubscriptionId: { type: String },
     },
     settings: {
       maxAgents: { type: Number, default: 1 },

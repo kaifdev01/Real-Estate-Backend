@@ -792,3 +792,64 @@ exports.getAllProperties = asyncHandler(async (req, res) => {
     pagination: { page: Number(page), limit: Number(limit), total, pages: Math.ceil(total / Number(limit)) },
   });
 });
+
+exports.adminDeleteProperty = asyncHandler(async (req, res) => {
+  const property = await Property.findByIdAndDelete(req.params.id);
+  if (!property) throw new AppError("Property not found.", 404);
+
+  res.json({
+    success: true,
+    message: "Property deleted.",
+    data: { id: req.params.id },
+  });
+});
+
+exports.adminToggleFeatured = asyncHandler(async (req, res) => {
+  const { featured = true, days = FEATURED_DURATION_DAYS } = req.body;
+  const property = await Property.findById(req.params.id);
+  if (!property) throw new AppError("Property not found.", 404);
+
+  if (featured) {
+    const durationDays = Math.max(1, Math.min(Number(days) || FEATURED_DURATION_DAYS, 365));
+    property.featuredRequested = true;
+    property.featuredApprovalStatus = "approved";
+    property.featuredRequestedAt = property.featuredRequestedAt || new Date();
+    property.featuredReviewedAt = new Date();
+    property.featuredReviewedBy = req.userId;
+    property.featuredReviewNotes = "Marked featured by super admin.";
+    property.featuredRejectionReason = undefined;
+    property.featuredUntil = new Date(Date.now() + durationDays * 24 * 60 * 60 * 1000);
+    if (property.status === "pending_featured_approval") {
+      property.status = property.featuredPreviousStatus && property.featuredPreviousStatus !== "pending_featured_approval"
+        ? property.featuredPreviousStatus
+        : "approved";
+    }
+  } else {
+    property.featuredUntil = undefined;
+    property.featuredReviewedAt = new Date();
+    property.featuredReviewedBy = req.userId;
+    if (property.featuredApprovalStatus === "pending" || property.status === "pending_featured_approval") {
+      property.featuredApprovalStatus = "rejected";
+      property.featuredRequested = true;
+      property.featuredRejectionReason = "Rejected by super admin.";
+      property.featuredReviewNotes = "Featured request rejected by super admin.";
+      property.status = property.featuredPreviousStatus && property.featuredPreviousStatus !== "pending_featured_approval"
+        ? property.featuredPreviousStatus
+        : "rejected";
+    } else {
+      property.featuredApprovalStatus = "none";
+      property.featuredRequested = false;
+      property.featuredReviewNotes = "Featured removed by super admin.";
+    }
+  }
+
+  await property.save();
+  await property.populate("agentId", "firstName lastName email");
+  await property.populate("tenantId", "name slug");
+
+  res.json({
+    success: true,
+    message: featured ? "Property marked as featured." : "Featured removed.",
+    data: { property },
+  });
+});
