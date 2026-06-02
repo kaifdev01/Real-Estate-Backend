@@ -274,6 +274,19 @@ exports.createProperty = asyncHandler(async (req, res) => {
     }
   }
 
+  if (req.user.role === "agent") {
+    const agentMaxListings = req.user.settings?.maxListings;
+    if (typeof agentMaxListings === "number") {
+      const agentListingCount = await Property.countDocuments({
+        agentId: req.userId,
+        status: { $nin: ["archived", "closed"] },
+      });
+      if (agentListingCount >= agentMaxListings) {
+        throw new AppError(`Your current agent plan allows ${agentMaxListings} active listing(s). Upgrade your plan to add more properties.`, 403);
+      }
+    }
+  }
+
   const property = await Property.create({
     ...req.body,
     agentId: req.userId,
@@ -358,7 +371,11 @@ exports.submitProperty = asyncHandler(async (req, res) => {
   property.rejectionReason = undefined;
   await property.save();
 
-  res.json({ success: true, message: "Property submitted for review.", data: { property } });
+  const message = property.featured
+    ? "Property submitted as featured. Awaiting super admin approval."
+    : "Property submitted for review.";
+
+  res.json({ success: true, message, data: { property } });
 });
 
 // ─── PATCH /api/properties/:id/review — Agency admin approves or rejects ──────
