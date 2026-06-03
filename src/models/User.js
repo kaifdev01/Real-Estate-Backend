@@ -41,6 +41,7 @@ const userSchema = new mongoose.Schema(
     // Agent profile fields (only for role: agent)
     bio:          { type: String, default: "" },
     city:         { type: String, default: "" },
+    whatsappNumber: { type: String, default: "" },
     specialties:  { type: [String], default: [] },
     languages:    { type: [String], default: [] },
     experience:   { type: Number, default: 0 },
@@ -94,6 +95,7 @@ userSchema.methods.toPublicJSON = function () {
     // agent profile
     bio: this.bio,
     city: this.city,
+    whatsappNumber: this.whatsappNumber,
     specialties: this.specialties,
     languages: this.languages,
     experience: this.experience,
