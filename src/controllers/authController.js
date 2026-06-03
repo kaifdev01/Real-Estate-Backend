@@ -75,7 +75,7 @@ exports.registerBuyer = asyncHandler(async (req, res) => {
 // ─── Register Agent (independent agent without agency) ──────────────────────
 
 exports.registerAgent = asyncHandler(async (req, res) => {
-  const { firstName, lastName, email, phone, password, plan = "free" } = req.body;
+  const { firstName, lastName, email, phone, whatsappNumber, password, plan = "free" } = req.body;
 
   const exists = await User.findOne({ email });
   if (exists) throw new AppError("Email already registered.", 409);
@@ -92,6 +92,7 @@ exports.registerAgent = asyncHandler(async (req, res) => {
     lastName,
     email,
     phone,
+    whatsappNumber,
     password,
     role: "agent",
     tenantId: null,
@@ -221,7 +222,7 @@ exports.verifyEmail = asyncHandler(async (req, res) => {
 // â”€â”€â”€ Complete Agent Invitation â€” verifies OTP, sets password, activates tenant agent â”€â”€â”€
 
 exports.completeAgentInvitation = asyncHandler(async (req, res) => {
-  const { email, code, password, firstName, lastName, phone } = req.body;
+  const { email, code, password, firstName, lastName, phone, whatsappNumber } = req.body;
 
   const user = await User.findOne({ email, role: "agent" }).select(
     "+password +verificationCode +verificationCodeExpires"
@@ -241,6 +242,7 @@ exports.completeAgentInvitation = asyncHandler(async (req, res) => {
   if (firstName) user.firstName = firstName;
   if (lastName) user.lastName = lastName;
   if (phone) user.phone = phone;
+  if (whatsappNumber) user.whatsappNumber = whatsappNumber;
   user.password = password;
   user.isVerified = true;
   user.status = "active";

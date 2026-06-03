@@ -31,12 +31,38 @@ const formatTenant = async (tenant) => {
   };
 };
 
+<<<<<<< HEAD
+=======
+const relativeTimestamp = (doc) => doc.updatedAt || doc.createdAt || new Date();
+
+const formatUser = (user) => ({
+  id: user._id,
+  name: `${user.firstName} ${user.lastName}`.trim(),
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  phone: user.phone || "",
+  whatsappNumber: user.whatsappNumber || "",
+  role: user.role,
+  status: user.status,
+  isVerified: user.isVerified,
+  tenant: user.tenantId ? {
+    id: user.tenantId._id,
+    name: user.tenantId.name,
+  } : null,
+  city: user.city || "",
+  joined: user.createdAt,
+  lastLogin: user.lastLogin,
+});
+
+>>>>>>> 67bf5415b6f6bab8010740236b2dcaaa8e48a7c1
 const formatAgentSubscription = async (agent) => {
   const listings    = await Property.countDocuments({ agentId: agent._id, status: { $nin: ["archived"] } });
   const tenantPlan  = agent.tenantId?.subscription?.plan;
   const plan        = agent.subscription?.plan || tenantPlan || "free";
   const planConfig  = await getPlan(plan, agent.tenantId ? "agency" : "agent");
   return {
+<<<<<<< HEAD
     id:           agent._id,
     firstName:    agent.firstName,
     lastName:     agent.lastName,
@@ -44,6 +70,16 @@ const formatAgentSubscription = async (agent) => {
     phone:        agent.phone || "",
     tenant:       agent.tenantId?.name || null,
     status:       agent.status,
+=======
+    id: agent._id,
+    firstName: agent.firstName,
+    lastName: agent.lastName,
+    email: agent.email,
+    phone: agent.phone || "",
+    whatsappNumber: agent.whatsappNumber || "",
+    tenant: agent.tenantId?.name || null,
+    status: agent.status,
+>>>>>>> 67bf5415b6f6bab8010740236b2dcaaa8e48a7c1
     plan,
     subscription: {
       plan,
