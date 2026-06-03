@@ -51,11 +51,12 @@ const userSchema = new mongoose.Schema(
     resetPasswordExpires: { type: Date, select: false },
 
     // Agent profile fields (only for role: agent)
-    bio: { type: String, default: "" },
-    city: { type: String, default: "" },
-    specialties: { type: [String], default: [] },
-    languages: { type: [String], default: [] },
-    experience: { type: Number, default: 0 },
+    bio:          { type: String, default: "" },
+    city:         { type: String, default: "" },
+    whatsappNumber: { type: String, default: "" },
+    specialties:  { type: [String], default: [] },
+    languages:    { type: [String], default: [] },
+    experience:   { type: Number, default: 0 },
     responseTime: { type: String, default: "< 24 hours" },
     avatar: { type: String, default: "" },
 
@@ -106,6 +107,7 @@ userSchema.methods.toPublicJSON = function () {
     // agent profile
     bio: this.bio,
     city: this.city,
+    whatsappNumber: this.whatsappNumber,
     specialties: this.specialties,
     languages: this.languages,
     experience: this.experience,

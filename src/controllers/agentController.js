@@ -34,7 +34,7 @@ exports.getAgents = asyncHandler(async (req, res) => {
   const total = await User.countDocuments(filter);
 
   const agents = await User.find(filter)
-    .select("firstName lastName email phone city bio specialties languages experience responseTime avatar role createdAt")
+    .select("firstName lastName email phone whatsappNumber city bio specialties languages experience responseTime avatar role createdAt")
     .sort({ experience: -1, createdAt: -1 })
     .skip(skip)
     .limit(Number(limit))
@@ -63,7 +63,7 @@ exports.getAgents = asyncHandler(async (req, res) => {
 // ─── POST /api/agents/invite — Agency admin invites a new agent ─────────────
 
 exports.inviteAgent = asyncHandler(async (req, res) => {
-  const { name, email, phone } = req.body;
+  const { name, email, phone, whatsappNumber } = req.body;
   const tenantId = req.tenantId || req.user.tenantId;
 
   if (!tenantId) {
@@ -92,6 +92,7 @@ exports.inviteAgent = asyncHandler(async (req, res) => {
     existingUser.firstName = firstName;
     existingUser.lastName = lastName;
     existingUser.phone = phone?.trim() || existingUser.phone || "0000000000";
+    existingUser.whatsappNumber = whatsappNumber?.trim() || existingUser.whatsappNumber || "";
     existingUser.password = tempPassword;
     existingUser.verificationCode = verificationCode;
     existingUser.verificationCodeExpires = verificationCodeExpires;
@@ -122,6 +123,7 @@ exports.inviteAgent = asyncHandler(async (req, res) => {
     lastName,
     email,
     phone: phone?.trim() || "0000000000",
+    whatsappNumber: whatsappNumber?.trim() || "",
     password: tempPassword,
     role: "agent",
     tenantId,
@@ -152,7 +154,7 @@ exports.getAgencyAgents = asyncHandler(async (req, res) => {
   if (!tenantId) throw new AppError("Agency tenant context is required.", 400);
 
   const agents = await User.find({ tenantId, role: "agent" })
-    .select("firstName lastName email phone status isVerified createdAt")
+    .select("firstName lastName email phone whatsappNumber status isVerified createdAt")
     .sort({ createdAt: -1 })
     .lean();
 
@@ -201,7 +203,7 @@ exports.updateAgencyAgentStatus = asyncHandler(async (req, res) => {
 
 exports.updateAgencyAgent = asyncHandler(async (req, res) => {
   const tenantId = req.tenantId || req.user.tenantId;
-  const allowed = ["firstName", "lastName", "phone", "city", "bio", "specialties", "languages", "experience", "responseTime", "avatar"];
+  const allowed = ["firstName", "lastName", "phone", "whatsappNumber", "city", "bio", "specialties", "languages", "experience", "responseTime", "avatar"];
   const updates = {};
 
   allowed.forEach((key) => {
@@ -238,7 +240,7 @@ exports.getAgentById = asyncHandler(async (req, res) => {
     status: "active",
     isVerified: true,
   })
-    .select("firstName lastName email phone city bio specialties languages experience responseTime avatar role createdAt")
+    .select("firstName lastName email phone whatsappNumber city bio specialties languages experience responseTime avatar role createdAt")
     .lean();
 
   if (!agent) throw new AppError("Agent not found.", 404);
@@ -307,7 +309,7 @@ exports.sendDirectMessage = asyncHandler(async (req, res) => {
 // ─── PATCH /api/agents/profile — Agent updates own profile ───────────────────
 
 exports.updateAgentProfile = asyncHandler(async (req, res) => {
-  const allowed = ["bio", "city", "specialties", "languages", "experience", "responseTime", "avatar", "phone"];
+  const allowed = ["bio", "city", "specialties", "languages", "experience", "responseTime", "avatar", "phone", "whatsappNumber"];
   const updates = {};
   allowed.forEach((key) => { if (req.body[key] !== undefined) updates[key] = req.body[key]; });
 
