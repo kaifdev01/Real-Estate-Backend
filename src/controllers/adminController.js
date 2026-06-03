@@ -136,42 +136,42 @@ exports.getTenants = asyncHandler(async (req, res) => {
   res.json({ success: true, data: { tenants: data } });
 });
 
-exports.getUsers = asyncHandler(async (req, res) => {
-  const { search, role, status, page = 1, limit = 50 } = req.query;
-  const filter = {};
+exports.getAgents = asyncHandler(async (req, res) => {
+  const agents = await User.find({ role: "agent" })
+    .populate("tenantId", "name")
+    .sort({ createdAt: -1 })
+    .lean();
 
-  if (role && role !== "all") filter.role = role;
-  if (status && status !== "all") filter.status = status;
-  if (search) {
-    filter.$or = [
-      { firstName: { $regex: search, $options: "i" } },
-      { lastName: { $regex: search, $options: "i" } },
-      { email: { $regex: search, $options: "i" } },
-      { phone: { $regex: search, $options: "i" } },
-    ];
+  const data = await Promise.all(agents.map(formatAgent));
+  res.json({ success: true, data: { agents: data } });
+});
+
+exports.updateAgentSubscription = asyncHandler(async (req, res) => {
+  const { plan } = req.body;
+  if (!plan) {
+    throw new AppError("Plan is required.", 400);
   }
 
-  const skip = (Number(page) - 1) * Number(limit);
-  const [users, total] = await Promise.all([
-    User.find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit))
-      .populate("tenantId", "name")
-      .lean(),
-    User.countDocuments(filter),
-  ]);
+  const validPlans = ["free", "basic", "pro", "enterprise"];
+  if (!validPlans.includes(plan)) {
+    throw new AppError("Invalid plan selected.", 400);
+  }
 
-  res.json({
-    success: true,
-    data: { users: users.map(formatUser) },
-    pagination: {
-      page: Number(page),
-      limit: Number(limit),
-      total,
-      pages: Math.ceil(total / Number(limit)),
-    },
-  });
+  const planConfig = getPlan(plan);
+  const updates = {
+    subscription: { plan, startDate: new Date() },
+    settings: { maxListings: planConfig.maxListings },
+  };
+
+  const agent = await User.findOneAndUpdate(
+    { _id: req.params.id, role: "agent" },
+    updates,
+    { new: true, runValidators: true }
+  );
+
+  if (!agent) throw new AppError("Agent not found.", 404);
+
+  res.json({ success: true, message: "Agent subscription updated.", data: { agent: agent.toPublicJSON() } });
 });
 
 exports.getAgents = asyncHandler(async (req, res) => {
@@ -261,6 +261,8 @@ exports.deleteTenant = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Tenant cancelled.", data: { tenant: await formatTenant(tenant) } });
 });
 
+const SubscriptionPlan = require("../models/SubscriptionPlan");
+
 exports.getPlans = asyncHandler(async (req, res) => {
   const plans = await getPlanList(req.query.scope);
   res.json({ success: true, data: { plans } });
@@ -328,6 +330,27 @@ exports.deletePlan = asyncHandler(async (req, res) => {
   res.json({ success: true, message: "Plan deleted." });
 });
 
+exports.createPlan = asyncHandler(async (req, res) => {
+  const { name, slug, description, billing, priceMonthly, priceYearly, features, limits, active } = req.body;
+  if (!name) throw new AppError("Plan name is required.", 400);
+  const { createPlan } = require("../services/subscriptionService");
+  const plan = await createPlan({ name, slug, description, billing, priceMonthly, priceYearly, features, limits, active });
+  res.status(201).json({ success: true, message: "Plan created.", data: { plan } });
+});
+
+exports.updatePlan = asyncHandler(async (req, res) => {
+  const { updatePlan } = require("../services/subscriptionService");
+  const plan = await updatePlan(req.params.id, req.body);
+  if (!plan) throw new AppError("Plan not found.", 404);
+  res.json({ success: true, message: "Plan updated.", data: { plan } });
+});
+
+exports.deletePlan = asyncHandler(async (req, res) => {
+  const { deletePlan } = require("../services/subscriptionService");
+  await deletePlan(req.params.id);
+  res.json({ success: true, message: "Plan deleted." });
+});
+
 exports.getSettings = asyncHandler(async (req, res) => {
   res.json({
     success: true,
@@ -392,4 +415,73 @@ exports.getAuditLogs = asyncHandler(async (req, res) => {
   ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 30);
 
   res.json({ success: true, data: { logs } });
+});
+
+// ─── GET /api/admin/featured-properties — Get featured properties awaiting approval ────
+
+exports.getFeaturedPropertiesForApproval = asyncHandler(async (req, res) => {
+  const properties = await Property.find({
+    featured: true,
+    status: "submitted",
+  })
+    .populate("agentId", "firstName lastName email phone")
+    .populate("tenantId", "name slug logo")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  res.json({ success: true, data: { properties } });
+});
+
+// ─── PATCH /api/admin/featured-properties/:id/approve — Super admin approves featured property ────
+
+exports.approveFeaturedProperty = asyncHandler(async (req, res) => {
+  const property = await Property.findOne({
+    _id: req.params.id,
+    featured: true,
+    status: "submitted",
+  });
+
+  if (!property) {
+    throw new AppError("Featured property not found or not pending approval.", 404);
+  }
+
+  property.status = "approved";
+  property.rejectionReason = undefined;
+  await property.save();
+
+  res.json({
+    success: true,
+    message: "Featured property approved and is now live.",
+    data: { property },
+  });
+});
+
+// ─── PATCH /api/admin/featured-properties/:id/reject — Super admin rejects featured property ────
+
+exports.rejectFeaturedProperty = asyncHandler(async (req, res) => {
+  const { rejectionReason } = req.body;
+
+  if (!rejectionReason || !rejectionReason.trim()) {
+    throw new AppError("Rejection reason is required.", 400);
+  }
+
+  const property = await Property.findOne({
+    _id: req.params.id,
+    featured: true,
+    status: "submitted",
+  });
+
+  if (!property) {
+    throw new AppError("Featured property not found or not pending approval.", 404);
+  }
+
+  property.status = "rejected";
+  property.rejectionReason = rejectionReason;
+  await property.save();
+
+  res.json({
+    success: true,
+    message: "Featured property rejected.",
+    data: { property },
+  });
 });

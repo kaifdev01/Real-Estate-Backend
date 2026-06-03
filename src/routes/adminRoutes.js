@@ -3,6 +3,8 @@ const router = express.Router();
 const controller = require("../controllers/adminController");
 const protect = require("../middleware/protect");
 const requireRole = require("../middleware/requireRole");
+const validate = require("../middleware/validate");
+const { z } = require("zod");
 
 router.use(protect, requireRole("super_admin"));
 
@@ -13,6 +15,7 @@ router.get("/agents", controller.getAgents);
 router.patch("/agents/:id", controller.updateAgentSubscription);
 router.post("/tenants", controller.createTenant);
 router.patch("/tenants/:id", controller.updateTenant);
+router.patch("/agents/:id", controller.updateAgentSubscription);
 router.delete("/tenants/:id", controller.deleteTenant);
 router.get("/plans", controller.getPlans);
 router.post("/plans", controller.createPlan);
@@ -21,5 +24,17 @@ router.patch("/plans/:id/status", controller.updatePlanStatus);
 router.delete("/plans/:id", controller.deletePlan);
 router.get("/settings", controller.getSettings);
 router.get("/audit-logs", controller.getAuditLogs);
+
+// ─── Featured Properties Approval ───────────────────────────────────────────
+router.get("/featured-properties", controller.getFeaturedPropertiesForApproval);
+router.patch(
+    "/featured-properties/:id/approve",
+    controller.approveFeaturedProperty
+);
+router.patch(
+    "/featured-properties/:id/reject",
+    validate(z.object({ rejectionReason: z.string().min(5, "Rejection reason must be at least 5 characters") })),
+    controller.rejectFeaturedProperty
+);
 
 module.exports = router;

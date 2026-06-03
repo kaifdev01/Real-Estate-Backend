@@ -1,16 +1,16 @@
 require("dotenv").config();
-const express    = require("express");
-const helmet     = require("helmet");
-const cors       = require("cors");
-const rateLimit  = require("express-rate-limit");
+const express = require("express");
+const helmet = require("helmet");
+const cors = require("cors");
+const rateLimit = require("express-rate-limit");
 const cookieParser = require("cookie-parser");
-const mongoose   = require("mongoose");
+const mongoose = require("mongoose");
 
-const authRoutes        = require("./src/routes/authRoutes");
-const propertyRoutes    = require("./src/routes/propertyRoutes");
-const agentRoutes       = require("./src/routes/agentRoutes");
-const uploadRoutes      = require("./src/routes/uploadRoutes");
-const inquiryRoutes     = require("./src/routes/inquiryRoutes");
+const authRoutes = require("./src/routes/authRoutes");
+const propertyRoutes = require("./src/routes/propertyRoutes");
+const agentRoutes = require("./src/routes/agentRoutes");
+const uploadRoutes = require("./src/routes/uploadRoutes");
+const inquiryRoutes = require("./src/routes/inquiryRoutes");
 const appointmentRoutes = require("./src/routes/appointmentRoutes");
 const adminRoutes       = require("./src/routes/adminRoutes");
 const subscriptionPlanRoutes = require("./src/routes/subscriptionPlanRoutes");
@@ -50,6 +50,14 @@ const authLimiter = rateLimit({
 });
 
 app.use(globalLimiter);
+
+// ─── Payments webhook (needs raw body) ───────────────────────────────────────
+try {
+  const paymentController = require("./src/controllers/paymentController");
+  app.post("/api/payments/webhook", express.raw({ type: "application/json" }), paymentController.webhookHandler);
+} catch (e) {
+  console.warn("Payment webhook not mounted:", e.message);
+}
 
 // ─── Body Parsing ─────────────────────────────────────────────────────────────
 app.use(express.json({ limit: "2mb" }));
