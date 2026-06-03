@@ -28,17 +28,26 @@ const formatTenant = async (tenant) => {
   };
 };
 
-const formatAgent = async (agent) => ({
-  id: agent._id,
-  firstName: agent.firstName,
-  lastName: agent.lastName,
-  email: agent.email,
-  phone: agent.phone || "",
-  tenant: agent.tenantId?.name || null,
-  status: agent.status,
-  plan: agent.subscription?.plan || "free",
-  settings: agent.settings || { maxListings: 0 },
-  joined: agent.createdAt,
+const relativeTimestamp = (doc) => doc.updatedAt || doc.createdAt || new Date();
+
+const formatUser = (user) => ({
+  id: user._id,
+  name: `${user.firstName} ${user.lastName}`.trim(),
+  firstName: user.firstName,
+  lastName: user.lastName,
+  email: user.email,
+  phone: user.phone || "",
+  whatsappNumber: user.whatsappNumber || "",
+  role: user.role,
+  status: user.status,
+  isVerified: user.isVerified,
+  tenant: user.tenantId ? {
+    id: user.tenantId._id,
+    name: user.tenantId.name,
+  } : null,
+  city: user.city || "",
+  joined: user.createdAt,
+  lastLogin: user.lastLogin,
 });
 
 const formatAgentSubscription = async (agent) => {
@@ -53,6 +62,7 @@ const formatAgentSubscription = async (agent) => {
     lastName: agent.lastName,
     email: agent.email,
     phone: agent.phone || "",
+    whatsappNumber: agent.whatsappNumber || "",
     tenant: agent.tenantId?.name || null,
     status: agent.status,
     plan,

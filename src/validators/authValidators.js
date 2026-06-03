@@ -25,6 +25,7 @@ const registerAgentSchema = z.object({
   lastName: z.string().min(1, "Last name is required").trim(),
   email: z.email("Invalid email address").toLowerCase(),
   phone: z.string().min(7, "Invalid phone number"),
+  whatsappNumber: z.string().min(7, "Invalid WhatsApp number").trim(),
   password: passwordSchema,
   confirmPassword: z.string(),
   plan: z.string().min(1, "Plan is required").trim().optional(),
@@ -80,6 +81,7 @@ const completeAgentInvitationSchema = z.object({
   firstName: z.string().min(1, "First name is required").trim().optional(),
   lastName: z.string().min(1, "Last name is required").trim().optional(),
   phone: z.string().min(7, "Invalid phone number").optional(),
+  whatsappNumber: z.string().min(7, "Invalid WhatsApp number").optional(),
 }).refine((d) => d.password === d.confirmPassword, {
   message: "Passwords do not match",
   path: ["confirmPassword"],
@@ -90,6 +92,7 @@ const inviteAgentSchema = z.object({
   name: z.string().min(1, "Agent name is required").trim(),
   email: z.email("Invalid email address").toLowerCase(),
   phone: z.string().optional(),
+  whatsappNumber: z.string().optional(),
 });
 
 // ─── Verify Email ─────────────────────────────────────────────────────────────
