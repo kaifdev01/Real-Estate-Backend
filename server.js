@@ -91,20 +91,31 @@ app.all("*", (req, res, next) =>
 // ─── Centralized Error Handler ────────────────────────────────────────────────
 app.use(errorHandler);
 
-// ─── Database + Server Start ──────────────────────────────────────────────────
-const PORT = process.env.PORT || 8080;
+// ─── Database Connection ──────────────────────────────────────────────────────
+let isConnected = false;
 
-mongoose
-  .connect(process.env.MONGO_URL)
-  .then(async () => {
-    console.log("Connected to MongoDB");
-    await seedDefaultPlans();
-    console.log("Subscription plans synced");
+const connectDB = async () => {
+  if (isConnected) return;
+  await mongoose.connect(process.env.MONGO_URL);
+  isConnected = true;
+  console.log("Connected to MongoDB");
+  await seedDefaultPlans();
+};
+
+// Connect on startup (works for both Vercel serverless and traditional server)
+connectDB().catch((err) => {
+  console.error("MongoDB connection failed:", err.message);
+});
+
+// ─── Export for Vercel serverless ─────────────────────────────────────────────
+module.exports = app;
+
+// ─── Local development server ─────────────────────────────────────────────────
+if (process.env.NODE_ENV !== "production") {
+  const PORT = process.env.PORT || 8080;
+  connectDB().then(() => {
     app.listen(PORT, () =>
       console.log(`Server running on port ${PORT} [${process.env.NODE_ENV}]`)
     );
-  })
-  .catch((err) => {
-    console.error("MongoDB connection failed:", err.message);
-    process.exit(1);
   });
+}
