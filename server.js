@@ -76,7 +76,7 @@ app.use("/api/payments", paymentRoutes);
 app.use("/api/admin", adminRoutes);
 
 
-app.use("/", (req, res) => res.json({ success: true, message: "API is running." }));)
+app.use("/", (req, res) => res.json({ success: true, message: "API is running." }));
 
 // Health check
 app.get("/api/health", (req, res) =>
