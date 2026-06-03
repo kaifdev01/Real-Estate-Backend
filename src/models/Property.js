@@ -27,7 +27,7 @@ const propertySchema = new mongoose.Schema(
     },
     category: {
       type: String,
-      enum: ["apartment", "villa", "commercial", "plot", "house", "penthouse"],
+      enum: ["apartment", "villa", "commercial", "residential", "plot", "house", "penthouse"],
       required: true,
     },
 

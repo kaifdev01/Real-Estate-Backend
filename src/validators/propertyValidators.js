@@ -1,10 +1,12 @@
 const { z } = require("zod");
 
+const propertyCategories = ["apartment", "villa", "commercial", "residential", "plot", "house", "penthouse"];
+
 const createPropertySchema = z.object({
   title: z.string().min(5, "Title must be at least 5 characters").max(150).trim(),
   description: z.string().max(3000).trim().optional(),
   listingType: z.enum(["for_sale", "for_rent"], { errorMap: () => ({ message: "listingType must be for_sale or for_rent" }) }),
-  category: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"], {
+  category: z.enum(propertyCategories, {
     errorMap: () => ({ message: "Invalid category" }),
   }),
   price: z.number({ invalid_type_error: "Price must be a number" }).min(0),
@@ -67,7 +69,7 @@ const propertyQuerySchema = z.object({
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(50).default(20),
   city: z.string().trim().optional(),
-  category: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"]).optional(),
+  category: z.enum(propertyCategories).optional(),
   listingType: z.enum(["for_sale", "for_rent"]).optional(),
   minPrice: z.coerce.number().min(0).optional(),
   maxPrice: z.coerce.number().min(0).optional(),
@@ -88,8 +90,8 @@ const mapSearchQuerySchema = z.object({
   city: z.string().trim().optional(),
   phase: z.string().trim().optional(),
   area: z.string().trim().optional(),
-  category: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"]).optional(),
-  propertyType: z.enum(["apartment", "villa", "commercial", "plot", "house", "penthouse"]).optional(),
+  category: z.enum(propertyCategories).optional(),
+  propertyType: z.enum(propertyCategories).optional(),
   listingType: z.enum(["for_sale", "for_rent"]).optional(),
   minPrice: z.coerce.number().min(0).optional(),
   maxPrice: z.coerce.number().min(0).optional(),
